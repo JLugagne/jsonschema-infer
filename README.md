@@ -9,11 +9,16 @@ A Go library for inferring JSON Schema from JSON samples. This library analyzes 
 - ✅ **Handle arrays**: treats all array items as the same type and infers their schema
 - ✅ **Nested objects**: full support for deeply nested object structures
 - ✅ **Arrays of objects**: infers schemas for complex array items with optional fields
-- ✅ **DateTime detection**: automatically detects ISO 8601 datetime strings
+- ✅ **Unified format detection**: all formats detected using the same mechanism (FormatDetector functions)
+- ✅ **Built-in formats**: datetime (ISO 8601), email, UUID, IPv4, IPv6, and URL (HTTP/HTTPS/FTP/FTPS)
+- ✅ **Custom format detectors**: register user-defined format detection functions
+- ✅ **Configurable**: disable built-in formats for full control
 - ✅ **Predefined types**: configure specific field types (e.g., `created_at` as DateTime)
+- ✅ **Flexible root types**: supports objects, arrays, and primitives at root level
 - ✅ **Incremental updates**: schema evolves after each sample is added
 - ✅ **Load/Resume**: load previously generated schemas and continue adding samples
 - ✅ **Tree-based architecture**: clean recursive structure for maintainability
+- ✅ **Max samples limit**: optionally limit the number of samples to process
 
 ## Requirements
 

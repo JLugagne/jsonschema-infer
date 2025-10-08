@@ -3,7 +3,6 @@ package jsonschema
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
 	"sync"
 )
 
@@ -12,15 +11,18 @@ type Generator struct {
 	mu            sync.RWMutex
 	rootNode      *SchemaNode
 	predefined    map[string]PredefinedType
+	customFormats []CustomFormat
 	sampleCount   int
+	maxSamples    int
 	currentSchema *Schema
 }
 
 // New creates a new Generator with optional configuration
 func New(opts ...Option) *Generator {
 	g := &Generator{
-		rootNode:   NewSchemaNode(),
-		predefined: make(map[string]PredefinedType),
+		rootNode:      NewSchemaNode(),
+		predefined:    make(map[string]PredefinedType),
+		customFormats: getBuiltInFormats(),
 	}
 
 	for _, opt := range opts {
@@ -30,17 +32,34 @@ func New(opts ...Option) *Generator {
 	return g
 }
 
+// getBuiltInFormats returns the default built-in format detectors
+func getBuiltInFormats() []CustomFormat {
+	return []CustomFormat{
+		{Name: "date-time", Detector: isDateTime},
+		{Name: "email", Detector: isEmail},
+		{Name: "uuid", Detector: isUUID},
+		{Name: "ipv6", Detector: isIPv6},
+		{Name: "ipv4", Detector: isIPv4},
+		{Name: "uri", Detector: isURL},
+	}
+}
+
 // AddSample adds a JSON sample to the generator and updates the schema
 // Thread-safe: can be called concurrently from multiple goroutines
 func (g *Generator) AddSample(jsonData string) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	// If maxSamples is set and we've reached the limit, do nothing
+	if g.maxSamples > 0 && g.sampleCount >= g.maxSamples {
+		return nil
+	}
+
 	// Parse JSON using json/v2 Unmarshal
 	var data interface{}
 	if err := json.Unmarshal([]byte(jsonData), &data); err != nil {
 		return fmt.Errorf("failed to parse JSON: %w", err)
 	}
-
-	g.mu.Lock()
-	defer g.mu.Unlock()
 
 	g.sampleCount++
 
@@ -68,28 +87,12 @@ func (g *Generator) applyPredefinedTypes() {
 
 // buildCurrentSchema builds the current schema from the root node
 func (g *Generator) buildCurrentSchema() *Schema {
-	schema := NewSchema()
-	schema.Type = "object"
+	// Use the root node's ToSchema method which handles all types
+	schema := g.rootNode.ToSchema(g.customFormats)
 
-	if len(g.rootNode.objectProperties) == 0 {
-		return schema
-	}
-
-	schema.Properties = make(map[string]*Schema)
-	required := []string{}
-
-	for key, childNode := range g.rootNode.objectProperties {
-		schema.Properties[key] = childNode.ToSchema()
-
-		// A property is required if it appeared in every sample
-		if childNode.sampleCount == g.sampleCount {
-			required = append(required, key)
-		}
-	}
-
-	if len(required) > 0 {
-		sort.Strings(required) // Ensure consistent output
-		schema.Required = required
+	// Add the $schema field
+	if schema.Schema == "" {
+		schema.Schema = "http://json-schema.org/draft-07/schema#"
 	}
 
 	return schema

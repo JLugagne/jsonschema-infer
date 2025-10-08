@@ -181,9 +181,11 @@ schema, _ := generator.Generate()
 
 **Result:** `id` and `name` are required in array items, `price` is optional.
 
-### 5. DateTime Detection
+### 5. Pattern Detection
 
-ISO 8601 datetime strings are automatically detected:
+The library automatically detects common string patterns and applies appropriate formats:
+
+#### DateTime Detection (ISO 8601)
 
 ```go
 generator := jsonschema.New()
@@ -207,6 +209,67 @@ schema, _ := generator.Generate()
   "required": ["created_at"]
 }
 ```
+
+#### Email Detection
+
+```go
+generator := jsonschema.New()
+generator.AddSample(`{"email": "user@example.com"}`)
+generator.AddSample(`{"email": "admin@test.org"}`)
+schema, _ := generator.Generate()
+// Result: email field has format "email"
+```
+
+#### UUID Detection
+
+```go
+generator := jsonschema.New()
+generator.AddSample(`{"id": "550e8400-e29b-41d4-a716-446655440000"}`)
+generator.AddSample(`{"id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8"}`)
+schema, _ := generator.Generate()
+// Result: id field has format "uuid"
+```
+
+#### IP Address Detection
+
+```go
+// IPv4
+generator := jsonschema.New()
+generator.AddSample(`{"ip": "192.168.1.1"}`)
+generator.AddSample(`{"ip": "10.0.0.1"}`)
+schema, _ := generator.Generate()
+// Result: ip field has format "ipv4"
+
+// IPv6
+generator := jsonschema.New()
+generator.AddSample(`{"ip": "2001:0db8:85a3:0000:0000:8a2e:0370:7334"}`)
+generator.AddSample(`{"ip": "fe80::1"}`)
+schema, _ := generator.Generate()
+// Result: ip field has format "ipv6"
+```
+
+#### URL Detection
+
+```go
+generator := jsonschema.New()
+generator.AddSample(`{"website": "https://example.com"}`)
+generator.AddSample(`{"website": "http://test.org/path"}`)
+generator.AddSample(`{"website": "ftp://files.example.com/data"}`)
+schema, _ := generator.Generate()
+// Result: website field has format "uri"
+```
+
+**Supported URL schemes:** HTTP, HTTPS, FTP, FTPS
+
+**Pattern Priority:** Patterns are checked in order of specificity:
+1. datetime (ISO 8601)
+2. email
+3. uuid
+4. ipv6
+5. ipv4
+6. uri (URL)
+
+All string values in a field must match the pattern for it to be applied.
 
 ## Common Patterns
 
@@ -330,6 +393,69 @@ schema, _ := generator.Generate()
 - `jsonschema.Array` - array type
 - `jsonschema.Object` - object type
 
+### Custom Format Detectors
+
+Register user-defined format detection functions:
+
+```go
+// Define a custom format detector for hex colors
+isHexColor := func(s string) bool {
+    if len(s) != 7 || s[0] != '#' {
+        return false
+    }
+    for i := 1; i < 7; i++ {
+        c := s[i]
+        if !((c >= '0' && c <= '9') ||
+             (c >= 'a' && c <= 'f') ||
+             (c >= 'A' && c <= 'F')) {
+            return false
+        }
+    }
+    return true
+}
+
+generator := jsonschema.New(
+    jsonschema.WithCustomFormat("hex-color", isHexColor),
+)
+
+generator.AddSample(`{"color": "#FF5733"}`)
+generator.AddSample(`{"color": "#00FF00"}`)
+
+schema, _ := generator.Generate()
+// Result: color field has type "string" and format "hex-color"
+```
+
+**Multiple Custom Formats:**
+
+```go
+isPhoneNumber := func(s string) bool {
+    return len(s) > 10 && s[0] == '+'
+}
+
+generator := jsonschema.New(
+    jsonschema.WithCustomFormat("hex-color", isHexColor),
+    jsonschema.WithCustomFormat("phone", isPhoneNumber),
+)
+```
+
+**Priority:** Custom formats are checked **after** built-in formats (date-time, email, uuid, ipv6, ipv4, uri). All string values must match for the format to be applied.
+
+**Disabling Built-In Formats:**
+
+If you want complete control over format detection, you can disable all built-in formats:
+
+```go
+generator := jsonschema.New(
+    jsonschema.WithoutBuiltInFormats(),
+    jsonschema.WithCustomFormat("my-date", myDateDetector),
+)
+```
+
+This is useful when:
+- You want to use different format names
+- You want to implement your own validation logic
+- Built-in formats are too strict/lenient for your use case
+
 ### Load and Resume
 
 Save and load schemas to continue evolving them:
@@ -414,6 +540,49 @@ schema, _ := generator.Generate()
   },
   "required": ["value"]
 }
+```
+
+### Array as Root
+
+The library supports arrays at the root level:
+
+```go
+generator := jsonschema.New()
+
+generator.AddSample(`[{"id": 1, "name": "John"}, {"id": 2, "name": "Jane"}]`)
+generator.AddSample(`[{"id": 3, "name": "Bob"}]`)
+
+schema, _ := generator.Generate()
+```
+
+**Result:**
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "id": {"type": "integer"},
+      "name": {"type": "string"}
+    },
+    "required": ["id", "name"]
+  }
+}
+```
+
+### Primitives as Root
+
+Primitive types are also supported:
+
+```go
+generator := jsonschema.New()
+
+generator.AddSample(`"hello"`)
+generator.AddSample(`"world"`)
+
+schema, _ := generator.Generate()
+// Result: schema with type "string"
 ```
 
 ## Best Practices
@@ -540,18 +709,32 @@ generator.AddSample(`{"b": 2, "c": 3}`)
 // Result: no required fields (none appear in all 3 samples)
 ```
 
-### Issue: DateTime Not Detected
+### Issue: Pattern Not Detected
 
-**Problem:** String doesn't match ISO 8601 format.
+**Problem:** String doesn't match expected pattern format.
 
-**Solution:** Ensure datetime strings follow ISO 8601:
+**Solution:** Ensure strings follow the correct format:
 ```go
-// ✓ Detected: ISO 8601 format
+// ✓ Detected: ISO 8601 datetime
 generator.AddSample(`{"time": "2023-01-15T10:30:00Z"}`)
 
-// ✗ Not detected: custom format
+// ✗ Not detected: custom datetime format
 generator.AddSample(`{"time": "01/15/2023 10:30 AM"}`)
+
+// ✓ Detected: valid email
+generator.AddSample(`{"contact": "user@example.com"}`)
+
+// ✗ Not detected: missing @ symbol
+generator.AddSample(`{"contact": "user.example.com"}`)
+
+// ✓ Detected: valid UUID
+generator.AddSample(`{"id": "550e8400-e29b-41d4-a716-446655440000"}`)
+
+// ✗ Not detected: invalid UUID format
+generator.AddSample(`{"id": "550e8400-e29b-41d4"}`)
 ```
+
+**Note:** All values in a field must match the pattern for format detection to apply. If even one value doesn't match, no format will be set.
 
 ### Issue: Unexpected Multiple Types
 

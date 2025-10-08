@@ -9,6 +9,21 @@ import (
 var (
 	// ISO 8601 datetime pattern
 	iso8601Pattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$`)
+
+	// Email pattern (RFC 5322 simplified)
+	emailPattern = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
+
+	// UUID pattern (supports v1-v5)
+	uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$`)
+
+	// IPv4 pattern
+	ipv4Pattern = regexp.MustCompile(`^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.?\b){4}$`)
+
+	// IPv6 pattern (simplified - handles most common cases)
+	ipv6Pattern = regexp.MustCompile(`^(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$`)
+
+	// URL pattern (HTTP/HTTPS/FTP/FTPS)
+	urlPattern = regexp.MustCompile(`^(https?|ftps?)://[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*(/.*)?$`)
 )
 
 // SchemaNode represents a node in the schema tree
@@ -80,12 +95,18 @@ func (n *SchemaNode) ObserveValue(value interface{}) {
 }
 
 // ToSchema converts this node to a JSON Schema
-func (n *SchemaNode) ToSchema() *Schema {
+func (n *SchemaNode) ToSchema(customFormats ...[]CustomFormat) *Schema {
 	schema := &Schema{}
+
+	// Extract custom formats from variadic parameter
+	var formats []CustomFormat
+	if len(customFormats) > 0 {
+		formats = customFormats[0]
+	}
 
 	// Handle predefined types first
 	if n.predefinedType != nil {
-		return n.applyPredefinedType()
+		return n.applyPredefinedType(formats)
 	}
 
 	// Determine the primary type
@@ -112,12 +133,12 @@ func (n *SchemaNode) ToSchema() *Schema {
 	// Apply type-specific logic
 	switch primaryType {
 	case "string":
-		n.applyStringPatterns(schema)
+		n.applyStringPatterns(schema, formats)
 
 	case "array":
 		schema.Type = "array"
 		if n.arrayItemNode != nil {
-			schema.Items = n.arrayItemNode.ToSchema()
+			schema.Items = n.arrayItemNode.ToSchema(formats)
 		}
 
 	case "object":
@@ -127,7 +148,7 @@ func (n *SchemaNode) ToSchema() *Schema {
 			required := []string{}
 
 			for key, childNode := range n.objectProperties {
-				schema.Properties[key] = childNode.ToSchema()
+				schema.Properties[key] = childNode.ToSchema(formats)
 				// A property is required if it appeared in every observation of this object
 				if childNode.sampleCount == n.sampleCount {
 					required = append(required, key)
@@ -160,27 +181,23 @@ func (n *SchemaNode) getPrimaryType() string {
 }
 
 // applyStringPatterns detects and applies patterns for string types
-func (n *SchemaNode) applyStringPatterns(schema *Schema) {
+// Checks all formats (built-in and custom) in order
+func (n *SchemaNode) applyStringPatterns(schema *Schema, formats []CustomFormat) {
 	if len(n.stringValues) == 0 {
 		return
 	}
 
-	// Check if all strings match ISO 8601 datetime format
-	allDateTime := true
-	for _, str := range n.stringValues {
-		if !isDateTime(str) {
-			allDateTime = false
-			break
+	// Check all formats in order (built-in formats come first, then user custom formats)
+	for _, format := range formats {
+		if allMatch(n.stringValues, format.Detector) {
+			schema.Format = format.Name
+			return
 		}
-	}
-
-	if allDateTime {
-		schema.Format = "date-time"
 	}
 }
 
 // applyPredefinedType applies a predefined type configuration
-func (n *SchemaNode) applyPredefinedType() *Schema {
+func (n *SchemaNode) applyPredefinedType(formats []CustomFormat) *Schema {
 	schema := &Schema{}
 
 	switch *n.predefinedType {
@@ -198,14 +215,14 @@ func (n *SchemaNode) applyPredefinedType() *Schema {
 	case Array:
 		schema.Type = "array"
 		if n.arrayItemNode != nil {
-			schema.Items = n.arrayItemNode.ToSchema()
+			schema.Items = n.arrayItemNode.ToSchema(formats)
 		}
 	case Object:
 		schema.Type = "object"
 		if len(n.objectProperties) > 0 {
 			schema.Properties = make(map[string]*Schema)
 			for key, childNode := range n.objectProperties {
-				schema.Properties[key] = childNode.ToSchema()
+				schema.Properties[key] = childNode.ToSchema(formats)
 			}
 		}
 	}
@@ -237,6 +254,16 @@ func getPrimitiveType(value interface{}) string {
 	}
 }
 
+// allMatch checks if all strings match a given pattern function
+func allMatch(values []string, matchFunc func(string) bool) bool {
+	for _, str := range values {
+		if !matchFunc(str) {
+			return false
+		}
+	}
+	return true
+}
+
 // isDateTime checks if a string value matches ISO 8601 datetime format
 func isDateTime(value string) bool {
 	if iso8601Pattern.MatchString(value) {
@@ -245,4 +272,29 @@ func isDateTime(value string) bool {
 		return err == nil
 	}
 	return false
+}
+
+// isEmail checks if a string value matches email format
+func isEmail(value string) bool {
+	return emailPattern.MatchString(value)
+}
+
+// isUUID checks if a string value matches UUID format
+func isUUID(value string) bool {
+	return uuidPattern.MatchString(value)
+}
+
+// isIPv4 checks if a string value matches IPv4 format
+func isIPv4(value string) bool {
+	return ipv4Pattern.MatchString(value)
+}
+
+// isIPv6 checks if a string value matches IPv6 format
+func isIPv6(value string) bool {
+	return ipv6Pattern.MatchString(value)
+}
+
+// isURL checks if a string value matches URL format
+func isURL(value string) bool {
+	return urlPattern.MatchString(value)
 }

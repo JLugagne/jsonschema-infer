@@ -357,24 +357,48 @@ Sample 2: {"users": [
 Result: id and name required (3 == 3), email optional (2 != 3)
 ```
 
-### DateTime Detection
+### Format Detection (Unified Mechanism)
 
-**Pattern Matching:**
-```go
-iso8601Pattern = regexp.MustCompile(
-    `^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$`
-)
+The library uses a unified mechanism for all format detection (built-in and custom).
+
+**Core Architecture:**
+- All formats use `FormatDetector` functions: `func(string) bool`
+- Built-in formats pre-registered at initialization
+- Custom formats added via `WithCustomFormat()`
+- Detection order: built-in first, then custom
+
+**Algorithm:**
+1. Collect all string values observed for a field
+2. Iterate through format detectors in order
+3. For each detector, check if ALL values match
+4. First detector with 100% match wins
+5. Set `format: <name>` in schema
+
+**Example (DateTime):**
+```
+Sample 1: {"created_at": "2023-01-15T10:30:00Z"}
+Sample 2: {"created_at": "2023-02-20T14:45:00Z"}
+→ All match isDateTime() detector
+→ created_at.format = "date-time"
+
+Sample 1: {"created_at": "2023-01-15T10:30:00Z"}
+Sample 2: {"created_at": "not a date"}
+→ Not all match isDateTime() detector
+→ created_at.format = undefined
 ```
 
-**Validation:**
-1. Check regex match
-2. Validate with `time.Parse(time.RFC3339, value)`
-3. **All** string values must match to apply format
+**Built-in Detectors:**
+- `isDateTime`: ISO 8601 (regex + time.Parse validation)
+- `isEmail`: RFC 5322 simplified
+- `isUUID`: UUIDs v1-v5
+- `isIPv6`: IPv6 addresses
+- `isIPv4`: IPv4 addresses
+- `isURL`: HTTP/HTTPS/FTP/FTPS URLs
 
 **Applied When:**
 - Primary type is "string"
 - No predefined type override
-- All observed string values match ISO 8601
+- All observed string values match a detector
 
 ### Schema Loading
 
@@ -525,30 +549,68 @@ This ensures:
 
 ## Extension Points
 
-### Adding New Pattern Detection
+### Adding Custom Format Detection
 
-**Example:** Email detection
+The unified format detection mechanism makes adding new formats simple - no need to modify internal code.
+
+**Using WithCustomFormat:**
 
 ```go
-// In node.go
-var emailPattern = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$`)
-
-func (n *SchemaNode) applyStringPatterns(schema *Schema) {
-    // ... existing datetime detection ...
-
-    // Email detection
-    allEmail := true
-    for _, str := range n.stringValues {
-        if !emailPattern.MatchString(str) {
-            allEmail = false
-            break
+// Define your detector function
+isHexColor := func(s string) bool {
+    if len(s) != 7 || s[0] != '#' {
+        return false
+    }
+    for i := 1; i < 7; i++ {
+        c := s[i]
+        if !((c >= '0' && c <= '9') ||
+             (c >= 'a' && c <= 'f') ||
+             (c >= 'A' && c <= 'F')) {
+            return false
         }
     }
-    if allEmail {
-        schema.Format = "email"
-        return
+    return true
+}
+
+// Register it
+generator := jsonschema.New(
+    jsonschema.WithCustomFormat("hex-color", isHexColor),
+)
+
+// Use it
+generator.AddSample(`{"color": "#FF5733"}`)
+// Result: color has format "hex-color"
+```
+
+**Adding Built-In Format (Internal):**
+
+If you want to add a new built-in format to the library itself:
+
+```go
+// In node.go - add detector function
+func isPhoneNumber(s string) bool {
+    // E.164 format validation
+    return len(s) > 10 && s[0] == '+' && /* ... */
+}
+
+// In jsonschema.go - add to getBuiltInFormats()
+func getBuiltInFormats() []CustomFormat {
+    return []CustomFormat{
+        // ... existing formats ...
+        {Name: "phone", Detector: isPhoneNumber},
     }
 }
+```
+
+**Disabling Built-In Formats:**
+
+For complete control over format detection:
+
+```go
+generator := jsonschema.New(
+    jsonschema.WithoutBuiltInFormats(),
+    jsonschema.WithCustomFormat("my-date", myDateDetector),
+)
 ```
 
 ### Adding New Predefined Types
@@ -673,8 +735,6 @@ End-to-end scenarios in `jsonschema_test.go`:
 - Load/resume functionality
 
 ### Test Coverage
-
-Current: ~95% coverage (see `make test-coverage`)
 
 **Uncovered Areas:**
 - Error paths (invalid JSON, malformed schemas)

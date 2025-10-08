@@ -167,6 +167,186 @@ func TestDateTimeDetection(t *testing.T) {
 	}
 }
 
+func TestEmailDetection(t *testing.T) {
+	generator := New()
+
+	json1 := `{"email": "user@example.com"}`
+	json2 := `{"email": "admin@test.org"}`
+
+	err := generator.AddSample(json1)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+	err = generator.AddSample(json2)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+
+	schemaJSON, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Failed to generate schema: %v", err)
+	}
+
+	var schema Schema
+	err = json.Unmarshal([]byte(schemaJSON), &schema)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal schema: %v", err)
+	}
+
+	if schema.Properties["email"].Type != "string" {
+		t.Errorf("Expected email to be string, got %v", schema.Properties["email"].Type)
+	}
+
+	if schema.Properties["email"].Format != "email" {
+		t.Errorf("Expected email format to be email, got %v", schema.Properties["email"].Format)
+	}
+}
+
+func TestUUIDDetection(t *testing.T) {
+	generator := New()
+
+	json1 := `{"id": "550e8400-e29b-41d4-a716-446655440000"}`
+	json2 := `{"id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8"}`
+
+	err := generator.AddSample(json1)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+	err = generator.AddSample(json2)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+
+	schemaJSON, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Failed to generate schema: %v", err)
+	}
+
+	var schema Schema
+	err = json.Unmarshal([]byte(schemaJSON), &schema)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal schema: %v", err)
+	}
+
+	if schema.Properties["id"].Type != "string" {
+		t.Errorf("Expected id to be string, got %v", schema.Properties["id"].Type)
+	}
+
+	if schema.Properties["id"].Format != "uuid" {
+		t.Errorf("Expected id format to be uuid, got %v", schema.Properties["id"].Format)
+	}
+}
+
+func TestIPv4Detection(t *testing.T) {
+	generator := New()
+
+	json1 := `{"ip": "192.168.1.1"}`
+	json2 := `{"ip": "10.0.0.1"}`
+
+	err := generator.AddSample(json1)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+	err = generator.AddSample(json2)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+
+	schemaJSON, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Failed to generate schema: %v", err)
+	}
+
+	var schema Schema
+	err = json.Unmarshal([]byte(schemaJSON), &schema)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal schema: %v", err)
+	}
+
+	if schema.Properties["ip"].Type != "string" {
+		t.Errorf("Expected ip to be string, got %v", schema.Properties["ip"].Type)
+	}
+
+	if schema.Properties["ip"].Format != "ipv4" {
+		t.Errorf("Expected ip format to be ipv4, got %v", schema.Properties["ip"].Format)
+	}
+}
+
+func TestIPv6Detection(t *testing.T) {
+	generator := New()
+
+	json1 := `{"ip": "2001:0db8:85a3:0000:0000:8a2e:0370:7334"}`
+	json2 := `{"ip": "fe80::1"}`
+
+	err := generator.AddSample(json1)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+	err = generator.AddSample(json2)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+
+	schemaJSON, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Failed to generate schema: %v", err)
+	}
+
+	var schema Schema
+	err = json.Unmarshal([]byte(schemaJSON), &schema)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal schema: %v", err)
+	}
+
+	if schema.Properties["ip"].Type != "string" {
+		t.Errorf("Expected ip to be string, got %v", schema.Properties["ip"].Type)
+	}
+
+	if schema.Properties["ip"].Format != "ipv6" {
+		t.Errorf("Expected ip format to be ipv6, got %v", schema.Properties["ip"].Format)
+	}
+}
+
+func TestURLDetection(t *testing.T) {
+	generator := New()
+
+	json1 := `{"website": "https://example.com"}`
+	json2 := `{"website": "http://test.org/path"}`
+	json3 := `{"website": "ftp://files.example.com/data"}`
+
+	err := generator.AddSample(json1)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+	err = generator.AddSample(json2)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+	err = generator.AddSample(json3)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+
+	schemaJSON, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Failed to generate schema: %v", err)
+	}
+
+	var schema Schema
+	err = json.Unmarshal([]byte(schemaJSON), &schema)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal schema: %v", err)
+	}
+
+	if schema.Properties["website"].Type != "string" {
+		t.Errorf("Expected website to be string, got %v", schema.Properties["website"].Type)
+	}
+
+	if schema.Properties["website"].Format != "uri" {
+		t.Errorf("Expected website format to be uri, got %v", schema.Properties["website"].Format)
+	}
+}
+
 func TestPredefinedTypes(t *testing.T) {
 	generator := New(
 		WithPredefined("created_at", DateTime),
@@ -699,5 +879,286 @@ func TestConcurrentReadWrite(t *testing.T) {
 
 	if len(schema.Properties) != 2 {
 		t.Errorf("Expected 2 properties, got %d", len(schema.Properties))
+	}
+}
+
+func TestCustomFormatDetection(t *testing.T) {
+	// Define a custom format detector for hex colors
+	isHexColor := func(s string) bool {
+		if len(s) != 7 {
+			return false
+		}
+		if s[0] != '#' {
+			return false
+		}
+		for i := 1; i < 7; i++ {
+			c := s[i]
+			if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+				return false
+			}
+		}
+		return true
+	}
+
+	generator := New(WithCustomFormat("hex-color", isHexColor))
+
+	json1 := `{"color": "#FF5733"}`
+	json2 := `{"color": "#00FF00"}`
+
+	err := generator.AddSample(json1)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+	err = generator.AddSample(json2)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+
+	schemaJSON, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Failed to generate schema: %v", err)
+	}
+
+	var schema Schema
+	err = json.Unmarshal([]byte(schemaJSON), &schema)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal schema: %v", err)
+	}
+
+	if schema.Properties["color"].Type != "string" {
+		t.Errorf("Expected color to be string, got %v", schema.Properties["color"].Type)
+	}
+
+	if schema.Properties["color"].Format != "hex-color" {
+		t.Errorf("Expected color format to be hex-color, got %v", schema.Properties["color"].Format)
+	}
+}
+
+func TestArrayAsRoot(t *testing.T) {
+	generator := New()
+
+	json1 := `[{"id": 1, "name": "John"}, {"id": 2, "name": "Jane"}]`
+	json2 := `[{"id": 3, "name": "Bob"}]`
+
+	err := generator.AddSample(json1)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+	err = generator.AddSample(json2)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+
+	schemaJSON, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Failed to generate schema: %v", err)
+	}
+
+	var schema Schema
+	err = json.Unmarshal([]byte(schemaJSON), &schema)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal schema: %v", err)
+	}
+
+	if schema.Type != "array" {
+		t.Errorf("Expected root type to be array, got %v", schema.Type)
+	}
+
+	if schema.Items == nil {
+		t.Fatal("Expected items schema to be defined")
+	}
+
+	if schema.Items.Type != "object" {
+		t.Errorf("Expected items type to be object, got %v", schema.Items.Type)
+	}
+
+	if len(schema.Items.Properties) != 2 {
+		t.Errorf("Expected 2 properties in items, got %d", len(schema.Items.Properties))
+	}
+
+	if schema.Items.Properties["id"].Type != "integer" {
+		t.Errorf("Expected id to be integer, got %v", schema.Items.Properties["id"].Type)
+	}
+
+	if schema.Items.Properties["name"].Type != "string" {
+		t.Errorf("Expected name to be string, got %v", schema.Items.Properties["name"].Type)
+	}
+
+	if len(schema.Items.Required) != 2 {
+		t.Errorf("Expected 2 required fields, got %d", len(schema.Items.Required))
+	}
+}
+
+func TestPrimitiveAsRoot(t *testing.T) {
+	generator := New()
+
+	json1 := `"hello"`
+	json2 := `"world"`
+
+	err := generator.AddSample(json1)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+	err = generator.AddSample(json2)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+
+	schemaJSON, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Failed to generate schema: %v", err)
+	}
+
+	var schema Schema
+	err = json.Unmarshal([]byte(schemaJSON), &schema)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal schema: %v", err)
+	}
+
+	if schema.Type != "string" {
+		t.Errorf("Expected root type to be string, got %v", schema.Type)
+	}
+}
+
+func TestMultipleCustomFormats(t *testing.T) {
+	// Define custom format detectors
+	isHexColor := func(s string) bool {
+		if len(s) != 7 || s[0] != '#' {
+			return false
+		}
+		for i := 1; i < 7; i++ {
+			c := s[i]
+			if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+				return false
+			}
+		}
+		return true
+	}
+
+	isPhoneNumber := func(s string) bool {
+		if len(s) < 10 {
+			return false
+		}
+		if s[0] != '+' {
+			return false
+		}
+		for i := 1; i < len(s); i++ {
+			if s[i] < '0' || s[i] > '9' {
+				return false
+			}
+		}
+		return true
+	}
+
+	generator := New(
+		WithCustomFormat("hex-color", isHexColor),
+		WithCustomFormat("phone", isPhoneNumber),
+	)
+
+	json1 := `{"color": "#FF5733", "phone": "+1234567890"}`
+	json2 := `{"color": "#00FF00", "phone": "+9876543210"}`
+
+	err := generator.AddSample(json1)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+	err = generator.AddSample(json2)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+
+	schemaJSON, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Failed to generate schema: %v", err)
+	}
+
+	var schema Schema
+	err = json.Unmarshal([]byte(schemaJSON), &schema)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal schema: %v", err)
+	}
+
+	if schema.Properties["color"].Format != "hex-color" {
+		t.Errorf("Expected color format to be hex-color, got %v", schema.Properties["color"].Format)
+	}
+
+	if schema.Properties["phone"].Format != "phone" {
+		t.Errorf("Expected phone format to be phone, got %v", schema.Properties["phone"].Format)
+	}
+}
+
+func TestWithoutBuiltInFormats(t *testing.T) {
+	// Test that built-in formats can be disabled
+	generator := New(WithoutBuiltInFormats())
+
+	json1 := `{"time": "2023-01-15T10:30:00Z", "email": "user@example.com"}`
+	json2 := `{"time": "2023-02-20T14:45:00Z", "email": "admin@test.org"}`
+
+	err := generator.AddSample(json1)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+	err = generator.AddSample(json2)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+
+	schemaJSON, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Failed to generate schema: %v", err)
+	}
+
+	var schema Schema
+	err = json.Unmarshal([]byte(schemaJSON), &schema)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal schema: %v", err)
+	}
+
+	// Both should be plain strings without format
+	if schema.Properties["time"].Format != "" {
+		t.Errorf("Expected time format to be empty, got %v", schema.Properties["time"].Format)
+	}
+
+	if schema.Properties["email"].Format != "" {
+		t.Errorf("Expected email format to be empty, got %v", schema.Properties["email"].Format)
+	}
+}
+
+func TestCustomFormatOverride(t *testing.T) {
+	// Test that you can define your own formats when built-ins are disabled
+	myDateDetector := func(s string) bool {
+		return len(s) == 10 && s[4] == '-' && s[7] == '-'
+	}
+
+	generator := New(
+		WithoutBuiltInFormats(),
+		WithCustomFormat("my-date", myDateDetector),
+	)
+
+	json1 := `{"date": "2023-01-15"}`
+	json2 := `{"date": "2024-12-31"}`
+
+	err := generator.AddSample(json1)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+	err = generator.AddSample(json2)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+
+	schemaJSON, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Failed to generate schema: %v", err)
+	}
+
+	var schema Schema
+	err = json.Unmarshal([]byte(schemaJSON), &schema)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal schema: %v", err)
+	}
+
+	if schema.Properties["date"].Format != "my-date" {
+		t.Errorf("Expected date format to be my-date, got %v", schema.Properties["date"].Format)
 	}
 }

@@ -74,16 +74,36 @@
 //	schema, _ := generator.Generate()
 //	// Result: id and name are required in array items, email is optional
 //
-// # DateTime Detection
+// # Format Detection
 //
-// The library automatically detects ISO 8601 datetime strings and marks them with
-// the "date-time" format:
+// The library uses a unified format detection mechanism. All formats (built-in and custom)
+// are detected using FormatDetector functions: func(string) bool
 //
-//	generator := jsonschema.New()
-//	generator.AddSample(`{"created_at": "2023-01-15T10:30:00Z"}`)
-//	generator.AddSample(`{"created_at": "2023-02-20T14:45:00Z"}`)
+// Built-in formats are automatically registered:
+//   - date-time: ISO 8601 datetime strings (e.g., "2023-01-15T10:30:00Z")
+//   - email: Email addresses (e.g., "user@example.com")
+//   - uuid: UUIDs v1-v5 (e.g., "550e8400-e29b-41d4-a716-446655440000")
+//   - ipv4: IPv4 addresses (e.g., "192.168.1.1")
+//   - ipv6: IPv6 addresses (e.g., "2001:0db8:85a3::8a2e:0370:7334")
+//   - uri: URLs with HTTP, HTTPS, FTP, FTPS schemes (e.g., "https://example.com")
+//
+// Custom formats can be registered using WithCustomFormat:
+//
+//	isHexColor := func(s string) bool {
+//	    return len(s) == 7 && s[0] == '#' && /* ... */
+//	}
+//	generator := jsonschema.New(
+//	    jsonschema.WithCustomFormat("hex-color", isHexColor),
+//	)
+//	generator.AddSample(`{"color": "#FF5733"}`)
 //	schema, _ := generator.Generate()
-//	// Result: created_at has type "string" and format "date-time"
+//	// Result: color has type "string" and format "hex-color"
+//
+// Built-in formats can be disabled if you want full control:
+//
+//	generator := jsonschema.New(jsonschema.WithoutBuiltInFormats())
+//
+// All string values in a field must match for a format to be applied.
 //
 // # Predefined Types
 //
@@ -192,7 +212,7 @@
 //
 // Current limitations:
 //   - All array items are treated as having the same schema (no tuple support)
-//   - No validation constraints (min/max, length, patterns beyond datetime)
+//   - No validation constraints (min/max, length)
 //   - Only JSON Schema draft-07 output format
 //   - No enum detection for fields with limited value sets
 //   - Sample count tracking is approximate after loading schemas

@@ -17,6 +17,7 @@ A Go library for inferring JSON Schema from JSON samples. This library analyzes 
 - ✅ **Flexible root types**: supports objects, arrays, and primitives at root level
 - ✅ **Incremental updates**: schema evolves after each sample is added
 - ✅ **Load/Resume**: load previously generated schemas and continue adding samples
+- ✅ **Schema versions**: support for Draft 06 and Draft 07 (default)
 - ✅ **Tree-based architecture**: clean recursive structure for maintainability
 - ✅ **Max samples limit**: optionally limit the number of samples to process
 

@@ -1162,3 +1162,552 @@ func TestCustomFormatOverride(t *testing.T) {
 		t.Errorf("Expected date format to be my-date, got %v", schema.Properties["date"].Format)
 	}
 }
+
+func TestExamples(t *testing.T) {
+	generator := New()
+
+	json1 := `{"name": "John", "age": 30, "active": true, "tags": ["go", "json"]}`
+	json2 := `{"name": "Jane", "age": 25, "active": false, "tags": ["test"]}`
+
+	err := generator.AddSample(json1)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+	err = generator.AddSample(json2)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+
+	schemaJSON, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Failed to generate schema: %v", err)
+	}
+
+	var schema Schema
+	err = json.Unmarshal([]byte(schemaJSON), &schema)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal schema: %v", err)
+	}
+
+	// Check that examples are captured from the first sample
+	if schema.Properties["name"].Example != "John" {
+		t.Errorf("Expected name example to be 'John', got %v", schema.Properties["name"].Example)
+	}
+
+	if schema.Properties["age"].Example != float64(30) {
+		t.Errorf("Expected age example to be 30, got %v", schema.Properties["age"].Example)
+	}
+
+	if schema.Properties["active"].Example != true {
+		t.Errorf("Expected active example to be true, got %v", schema.Properties["active"].Example)
+	}
+
+	// Check array example
+	if schema.Properties["tags"].Example == nil {
+		t.Error("Expected tags to have an example")
+	} else {
+		tagsExample, ok := schema.Properties["tags"].Example.([]any)
+		if !ok {
+			t.Errorf("Expected tags example to be array, got %T", schema.Properties["tags"].Example)
+		} else if len(tagsExample) != 2 || tagsExample[0] != "go" || tagsExample[1] != "json" {
+			t.Errorf("Expected tags example to be ['go', 'json'], got %v", tagsExample)
+		}
+	}
+}
+
+func TestExamplesWithNestedObjects(t *testing.T) {
+	generator := New()
+
+	json1 := `{"user": {"name": "John", "email": "john@example.com"}, "count": 5}`
+	json2 := `{"user": {"name": "Jane", "email": "jane@example.com"}, "count": 10}`
+
+	err := generator.AddSample(json1)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+	err = generator.AddSample(json2)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+
+	schemaJSON, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Failed to generate schema: %v", err)
+	}
+
+	var schema Schema
+	err = json.Unmarshal([]byte(schemaJSON), &schema)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal schema: %v", err)
+	}
+
+	// Check nested object example
+	if schema.Properties["user"].Example == nil {
+		t.Fatal("Expected user to have an example")
+	}
+
+	userExample, ok := schema.Properties["user"].Example.(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected user example to be object, got %T", schema.Properties["user"].Example)
+	}
+
+	if userExample["name"] != "John" {
+		t.Errorf("Expected user.name example to be 'John', got %v", userExample["name"])
+	}
+
+	if userExample["email"] != "john@example.com" {
+		t.Errorf("Expected user.email example to be 'john@example.com', got %v", userExample["email"])
+	}
+
+	// Check that nested properties also have examples
+	if schema.Properties["user"].Properties["name"].Example != "John" {
+		t.Errorf("Expected nested name example to be 'John', got %v", schema.Properties["user"].Properties["name"].Example)
+	}
+
+	if schema.Properties["count"].Example != float64(5) {
+		t.Errorf("Expected count example to be 5, got %v", schema.Properties["count"].Example)
+	}
+}
+
+func TestSchemaVersionDefault(t *testing.T) {
+	// Test that default schema version is Draft 07
+	generator := New()
+
+	json1 := `{"name": "John", "age": 30}`
+
+	err := generator.AddSample(json1)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+
+	schemaJSON, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Failed to generate schema: %v", err)
+	}
+
+	var schema Schema
+	err = json.Unmarshal([]byte(schemaJSON), &schema)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal schema: %v", err)
+	}
+
+	expectedVersion := "http://json-schema.org/draft-07/schema#"
+	if schema.Schema != expectedVersion {
+		t.Errorf("Expected schema version to be %s, got %s", expectedVersion, schema.Schema)
+	}
+}
+
+func TestSchemaVersionDraft07Explicit(t *testing.T) {
+	// Test explicit Draft 07 configuration
+	generator := New(WithSchemaVersion(Draft07))
+
+	json1 := `{"name": "John", "age": 30}`
+
+	err := generator.AddSample(json1)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+
+	schemaJSON, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Failed to generate schema: %v", err)
+	}
+
+	var schema Schema
+	err = json.Unmarshal([]byte(schemaJSON), &schema)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal schema: %v", err)
+	}
+
+	expectedVersion := "http://json-schema.org/draft-07/schema#"
+	if schema.Schema != expectedVersion {
+		t.Errorf("Expected schema version to be %s, got %s", expectedVersion, schema.Schema)
+	}
+}
+
+func TestSchemaVersionDraft06(t *testing.T) {
+	// Test Draft 06 configuration
+	generator := New(WithSchemaVersion(Draft06))
+
+	json1 := `{"name": "John", "age": 30}`
+
+	err := generator.AddSample(json1)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+
+	schemaJSON, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Failed to generate schema: %v", err)
+	}
+
+	var schema Schema
+	err = json.Unmarshal([]byte(schemaJSON), &schema)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal schema: %v", err)
+	}
+
+	expectedVersion := "http://json-schema.org/draft-06/schema#"
+	if schema.Schema != expectedVersion {
+		t.Errorf("Expected schema version to be %s, got %s", expectedVersion, schema.Schema)
+	}
+}
+
+func TestSchemaVersionWithComplexTypes(t *testing.T) {
+	// Test that Draft 06 works correctly with complex types
+	generator := New(WithSchemaVersion(Draft06))
+
+	json1 := `{
+		"user": {
+			"name": "John",
+			"email": "john@example.com",
+			"created": "2023-01-15T10:30:00Z"
+		},
+		"tags": ["golang", "testing"],
+		"count": 42
+	}`
+
+	json2 := `{
+		"user": {
+			"name": "Jane",
+			"email": "jane@example.com",
+			"created": "2023-02-20T14:45:00Z"
+		},
+		"tags": ["python", "devops", "docker"],
+		"count": 17
+	}`
+
+	err := generator.AddSample(json1)
+	if err != nil {
+		t.Fatalf("Failed to add sample 1: %v", err)
+	}
+
+	err = generator.AddSample(json2)
+	if err != nil {
+		t.Fatalf("Failed to add sample 2: %v", err)
+	}
+
+	schemaJSON, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Failed to generate schema: %v", err)
+	}
+
+	var schema Schema
+	err = json.Unmarshal([]byte(schemaJSON), &schema)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal schema: %v", err)
+	}
+
+	// Verify schema version
+	expectedVersion := "http://json-schema.org/draft-06/schema#"
+	if schema.Schema != expectedVersion {
+		t.Errorf("Expected schema version to be %s, got %s", expectedVersion, schema.Schema)
+	}
+
+	// Verify structure is correct
+	if schema.Type != "object" {
+		t.Errorf("Expected root type to be object, got %v", schema.Type)
+	}
+
+	// Verify user object
+	if schema.Properties["user"].Type != "object" {
+		t.Errorf("Expected user to be object, got %v", schema.Properties["user"].Type)
+	}
+
+	if schema.Properties["user"].Properties["email"].Format != "email" {
+		t.Errorf("Expected email format, got %v", schema.Properties["user"].Properties["email"].Format)
+	}
+
+	if schema.Properties["user"].Properties["created"].Format != "date-time" {
+		t.Errorf("Expected date-time format, got %v", schema.Properties["user"].Properties["created"].Format)
+	}
+
+	// Verify array
+	if schema.Properties["tags"].Type != "array" {
+		t.Errorf("Expected tags to be array, got %v", schema.Properties["tags"].Type)
+	}
+
+	if schema.Properties["tags"].Items.Type != "string" {
+		t.Errorf("Expected tags items to be string, got %v", schema.Properties["tags"].Items.Type)
+	}
+
+	// Verify integer
+	if schema.Properties["count"].Type != "integer" {
+		t.Errorf("Expected count to be integer, got %v", schema.Properties["count"].Type)
+	}
+}
+
+func TestSchemaVersionGetCurrentSchema(t *testing.T) {
+	// Test that GetCurrentSchema returns correct version
+	generator := New(WithSchemaVersion(Draft06))
+
+	json1 := `{"name": "John"}`
+
+	err := generator.AddSample(json1)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+
+	schema := generator.GetCurrentSchema()
+	if schema == nil {
+		t.Fatal("Expected non-nil schema from GetCurrentSchema")
+	}
+
+	expectedVersion := "http://json-schema.org/draft-06/schema#"
+	if schema.Schema != expectedVersion {
+		t.Errorf("Expected schema version to be %s, got %s", expectedVersion, schema.Schema)
+	}
+}
+
+func TestSchemaVersionWithFormats(t *testing.T) {
+	// Test that formats work correctly with Draft 06
+	generator := New(WithSchemaVersion(Draft06))
+
+	json1 := `{
+		"email": "user@example.com",
+		"uuid": "550e8400-e29b-41d4-a716-446655440000",
+		"ipv4": "192.168.1.1",
+		"ipv6": "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+		"url": "https://example.com/path"
+	}`
+
+	err := generator.AddSample(json1)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+
+	schemaJSON, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Failed to generate schema: %v", err)
+	}
+
+	var schema Schema
+	err = json.Unmarshal([]byte(schemaJSON), &schema)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal schema: %v", err)
+	}
+
+	// Verify schema version
+	expectedVersion := "http://json-schema.org/draft-06/schema#"
+	if schema.Schema != expectedVersion {
+		t.Errorf("Expected schema version to be %s, got %s", expectedVersion, schema.Schema)
+	}
+
+	// Verify all formats are detected correctly
+	if schema.Properties["email"].Format != "email" {
+		t.Errorf("Expected email format, got %v", schema.Properties["email"].Format)
+	}
+
+	if schema.Properties["uuid"].Format != "uuid" {
+		t.Errorf("Expected uuid format, got %v", schema.Properties["uuid"].Format)
+	}
+
+	if schema.Properties["ipv4"].Format != "ipv4" {
+		t.Errorf("Expected ipv4 format, got %v", schema.Properties["ipv4"].Format)
+	}
+
+	if schema.Properties["ipv6"].Format != "ipv6" {
+		t.Errorf("Expected ipv6 format, got %v", schema.Properties["ipv6"].Format)
+	}
+
+	if schema.Properties["url"].Format != "uri" {
+		t.Errorf("Expected uri format, got %v", schema.Properties["url"].Format)
+	}
+}
+
+func TestSchemaVersionWithCustomFormats(t *testing.T) {
+	// Test that custom formats work with Draft 06
+	isHexColor := func(s string) bool {
+		if len(s) != 7 || s[0] != '#' {
+			return false
+		}
+		for i := 1; i < 7; i++ {
+			c := s[i]
+			if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+				return false
+			}
+		}
+		return true
+	}
+
+	generator := New(
+		WithSchemaVersion(Draft06),
+		WithCustomFormat("hex-color", isHexColor),
+	)
+
+	json1 := `{"color": "#FF5733"}`
+
+	err := generator.AddSample(json1)
+	if err != nil {
+		t.Fatalf("Failed to add sample: %v", err)
+	}
+
+	schemaJSON, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Failed to generate schema: %v", err)
+	}
+
+	var schema Schema
+	err = json.Unmarshal([]byte(schemaJSON), &schema)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal schema: %v", err)
+	}
+
+	// Verify schema version
+	expectedVersion := "http://json-schema.org/draft-06/schema#"
+	if schema.Schema != expectedVersion {
+		t.Errorf("Expected schema version to be %s, got %s", expectedVersion, schema.Schema)
+	}
+
+	// Verify custom format
+	if schema.Properties["color"].Format != "hex-color" {
+		t.Errorf("Expected hex-color format, got %v", schema.Properties["color"].Format)
+	}
+}
+
+func TestSchemaVersionIncremental(t *testing.T) {
+	// Test that schema version is preserved across incremental updates
+	generator := New(WithSchemaVersion(Draft06))
+
+	json1 := `{"name": "John"}`
+	json2 := `{"name": "Jane", "age": 25}`
+	json3 := `{"name": "Bob", "age": 30, "email": "bob@example.com"}`
+
+	// Add first sample
+	err := generator.AddSample(json1)
+	if err != nil {
+		t.Fatalf("Failed to add sample 1: %v", err)
+	}
+
+	schema1 := generator.GetCurrentSchema()
+	if schema1.Schema != string(Draft06) {
+		t.Errorf("After sample 1: expected Draft06, got %s", schema1.Schema)
+	}
+
+	// Add second sample
+	err = generator.AddSample(json2)
+	if err != nil {
+		t.Fatalf("Failed to add sample 2: %v", err)
+	}
+
+	schema2 := generator.GetCurrentSchema()
+	if schema2.Schema != string(Draft06) {
+		t.Errorf("After sample 2: expected Draft06, got %s", schema2.Schema)
+	}
+
+	// Add third sample
+	err = generator.AddSample(json3)
+	if err != nil {
+		t.Fatalf("Failed to add sample 3: %v", err)
+	}
+
+	schema3 := generator.GetCurrentSchema()
+	if schema3.Schema != string(Draft06) {
+		t.Errorf("After sample 3: expected Draft06, got %s", schema3.Schema)
+	}
+
+	// Final generate
+	schemaJSON, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Failed to generate final schema: %v", err)
+	}
+
+	var finalSchema Schema
+	err = json.Unmarshal([]byte(schemaJSON), &finalSchema)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal final schema: %v", err)
+	}
+
+	expectedVersion := "http://json-schema.org/draft-06/schema#"
+	if finalSchema.Schema != expectedVersion {
+		t.Errorf("Final schema: expected version %s, got %s", expectedVersion, finalSchema.Schema)
+	}
+}
+
+func TestNewSchemaWithVersionDraft06(t *testing.T) {
+	// Test creating an empty schema with Draft06
+	schema := NewSchemaWithVersion(Draft06)
+
+	if schema == nil {
+		t.Fatal("NewSchemaWithVersion returned nil")
+	}
+
+	expectedVersion := "http://json-schema.org/draft-06/schema#"
+	if schema.Schema != expectedVersion {
+		t.Errorf("Expected schema version %s, got %s", expectedVersion, schema.Schema)
+	}
+
+	// Verify other fields are empty/nil
+	if schema.Type != nil {
+		t.Errorf("Expected Type to be nil, got %v", schema.Type)
+	}
+	if schema.Properties != nil {
+		t.Errorf("Expected Properties to be nil, got %v", schema.Properties)
+	}
+	if schema.Items != nil {
+		t.Errorf("Expected Items to be nil, got %v", schema.Items)
+	}
+	if schema.Required != nil {
+		t.Errorf("Expected Required to be nil, got %v", schema.Required)
+	}
+	if schema.Format != "" {
+		t.Errorf("Expected Format to be empty, got %s", schema.Format)
+	}
+}
+
+func TestNewSchemaWithVersionDraft07(t *testing.T) {
+	// Test creating an empty schema with Draft07
+	schema := NewSchemaWithVersion(Draft07)
+
+	if schema == nil {
+		t.Fatal("NewSchemaWithVersion returned nil")
+	}
+
+	expectedVersion := "http://json-schema.org/draft-07/schema#"
+	if schema.Schema != expectedVersion {
+		t.Errorf("Expected schema version %s, got %s", expectedVersion, schema.Schema)
+	}
+
+	// Verify other fields are empty/nil
+	if schema.Type != nil {
+		t.Errorf("Expected Type to be nil, got %v", schema.Type)
+	}
+	if schema.Properties != nil {
+		t.Errorf("Expected Properties to be nil, got %v", schema.Properties)
+	}
+}
+
+func TestNewSchemaBackwardCompatibility(t *testing.T) {
+	// Test that deprecated NewSchema() still works and creates Draft07
+	schema := NewSchema()
+
+	if schema == nil {
+		t.Fatal("NewSchema returned nil")
+	}
+
+	expectedVersion := "http://json-schema.org/draft-07/schema#"
+	if schema.Schema != expectedVersion {
+		t.Errorf("Expected schema version %s (Draft07 default), got %s", expectedVersion, schema.Schema)
+	}
+}
+
+func TestNewSchemaWithVersionMarshaling(t *testing.T) {
+	// Test that schemas created with NewSchemaWithVersion marshal correctly
+	schema := NewSchemaWithVersion(Draft06)
+
+	data, err := json.Marshal(schema)
+	if err != nil {
+		t.Fatalf("Failed to marshal schema: %v", err)
+	}
+
+	var unmarshaled Schema
+	err = json.Unmarshal(data, &unmarshaled)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal schema: %v", err)
+	}
+
+	expectedVersion := "http://json-schema.org/draft-06/schema#"
+	if unmarshaled.Schema != expectedVersion {
+		t.Errorf("Expected schema version %s after marshal/unmarshal, got %s", expectedVersion, unmarshaled.Schema)
+	}
+}

@@ -40,6 +40,7 @@ This document tracks implemented and planned features for jsonschema-infer.
 - ✅ Max samples limit - `WithMaxSamples(int)`
 - ✅ Custom format detectors - `WithCustomFormat(name, detector)`
 - ✅ Disable built-in formats - `WithoutBuiltInFormats()`
+- ✅ Schema version selection - `WithSchemaVersion(Draft06)` or `WithSchemaVersion(Draft07)`
 
 ### Schema Management
 - ✅ Incremental schema updates (rebuilds after each sample)
@@ -48,7 +49,7 @@ This document tracks implemented and planned features for jsonschema-infer.
 - ✅ Get current schema as object - `GetCurrentSchema()`
 
 ### Output
-- ✅ JSON Schema draft-07 format
+- ✅ JSON Schema Draft 06 and Draft 07 support (configurable)
 - ✅ Pretty-printed JSON output
 - ✅ Support for array as root type
 - ✅ Support for primitives as root type
@@ -57,7 +58,7 @@ This document tracks implemented and planned features for jsonschema-infer.
 - ✅ Thread-safe operations with mutex
 
 ### Testing
-- ✅ Comprehensive test coverage (27 tests)
+- ✅ Comprehensive test coverage (41 tests)
 
 ---
 

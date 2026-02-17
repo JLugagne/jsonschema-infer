@@ -3,6 +3,16 @@ package jsonschema
 // Option is a functional option for configuring the Generator
 type Option func(*Generator)
 
+// SchemaVersion represents a JSON Schema draft version
+type SchemaVersion string
+
+const (
+	// Draft06 represents JSON Schema Draft 06
+	Draft06 SchemaVersion = "http://json-schema.org/draft-06/schema#"
+	// Draft07 represents JSON Schema Draft 07 (default)
+	Draft07 SchemaVersion = "http://json-schema.org/draft-07/schema#"
+)
+
 // FormatDetector is a function that checks if a string matches a custom format
 type FormatDetector func(string) bool
 
@@ -60,5 +70,13 @@ func WithCustomFormat(formatName string, detector FormatDetector) Option {
 func WithoutBuiltInFormats() Option {
 	return func(g *Generator) {
 		g.customFormats = []CustomFormat{}
+	}
+}
+
+// WithSchemaVersion sets the JSON Schema draft version
+// Defaults to Draft07 if not specified
+func WithSchemaVersion(version SchemaVersion) Option {
+	return func(g *Generator) {
+		g.schemaVersion = version
 	}
 }

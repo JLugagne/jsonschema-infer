@@ -127,6 +127,35 @@
 //   - Array: array type
 //   - Object: object type
 //
+// # Schema Versions
+//
+// You can choose which JSON Schema draft version to generate. The library supports
+// Draft 06 and Draft 07 (default):
+//
+//	// Generate Draft 06 schema
+//	generator := jsonschema.New(jsonschema.WithSchemaVersion(jsonschema.Draft06))
+//	generator.AddSample(`{"name": "John", "age": 30}`)
+//	schema, _ := generator.Generate()
+//	// Result: $schema is "http://json-schema.org/draft-06/schema#"
+//
+//	// Generate Draft 07 schema (default)
+//	generator2 := jsonschema.New()  // or WithSchemaVersion(Draft07)
+//	generator2.AddSample(`{"name": "Jane", "age": 25}`)
+//	schema2, _ := generator2.Generate()
+//	// Result: $schema is "http://json-schema.org/draft-07/schema#"
+//
+// For the features used by this library, Draft 06 and Draft 07 are functionally equivalent.
+// The main difference is the $schema URL in the output.
+//
+// If you need to create an empty schema with a specific version (without using the Generator),
+// use NewSchemaWithVersion:
+//
+//	schema := jsonschema.NewSchemaWithVersion(jsonschema.Draft06)
+//	// schema.Schema is "http://json-schema.org/draft-06/schema#"
+//
+// Note: For schema inference from samples, always use Generator with New() and AddSample().
+// The NewSchemaWithVersion function is only for creating empty schema structures.
+//
 // # Incremental Schema Updates
 //
 // The schema is updated incrementally after each sample is added. You can inspect

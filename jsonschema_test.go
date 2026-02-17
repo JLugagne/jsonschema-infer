@@ -1164,7 +1164,7 @@ func TestCustomFormatOverride(t *testing.T) {
 }
 
 func TestExamples(t *testing.T) {
-	generator := New()
+	generator := New(WithExamples())
 
 	json1 := `{"name": "John", "age": 30, "active": true, "tags": ["go", "json"]}`
 	json2 := `{"name": "Jane", "age": 25, "active": false, "tags": ["test"]}`
@@ -1216,7 +1216,7 @@ func TestExamples(t *testing.T) {
 }
 
 func TestExamplesWithNestedObjects(t *testing.T) {
-	generator := New()
+	generator := New(WithExamples())
 
 	json1 := `{"user": {"name": "John", "email": "john@example.com"}, "count": 5}`
 	json2 := `{"user": {"name": "Jane", "email": "jane@example.com"}, "count": 10}`

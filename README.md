@@ -18,6 +18,7 @@ A Go library for inferring JSON Schema from JSON samples. This library analyzes 
 - ✅ **Incremental updates**: schema evolves after each sample is added
 - ✅ **Load/Resume**: load previously generated schemas and continue adding samples
 - ✅ **Schema versions**: support for Draft 06 and Draft 07 (default)
+- ✅ **Examples**: optional example capturing (disabled by default)
 - ✅ **Tree-based architecture**: clean recursive structure for maintainability
 - ✅ **Max samples limit**: optionally limit the number of samples to process
 
@@ -115,6 +116,17 @@ Available predefined types:
 - `Integer` - integer type
 - `Array` - array type
 - `Object` - object type
+
+### Examples
+
+The library can capture the first observed value as an `example` for each field:
+
+```go
+// Enable example capturing
+generator := jsonschema.New(jsonschema.WithExamples())
+```
+
+By default, example capturing is disabled to save memory and keep schemas compact.
 
 ### Arrays of Objects
 

@@ -42,7 +42,7 @@ When implementing a feature, complete ALL of these:
 - [ ] Update `FEATURES.md` status
 - [ ] Update `CLAUDE.md` feature list
 - [ ] Add/update examples in `doc.go`
-- [ ] Update test count everywhere (currently: 41 tests)
+- [ ] Update test count everywhere (currently: 43 tests)
 
 **DO NOT** consider a feature complete until all documentation is updated.
 
@@ -62,7 +62,7 @@ When implementing a feature, complete ALL of these:
 - `jsonschema.go` - Uses `encoding/json` Unmarshal for JSON parsing; includes `getBuiltInFormats()`
 - `schema.go` - JSON Schema output structures
 - `options.go` - Functional options pattern for configuration; includes `WithCustomFormat()`, `WithoutBuiltInFormats()`
-- `jsonschema_test.go` - Comprehensive tests (41 tests, all passing)
+- `jsonschema_test.go` - Comprehensive tests (43 tests, all passing)
 - `doc.go` - Package documentation with examples
 - `README.md` - Project overview and quick start
 - `USAGE.md` - Detailed usage guide with patterns
@@ -130,6 +130,6 @@ When implementing a feature, complete ALL of these:
 - No special flags required
 
 ### Current Metrics
-- **Test count**: 41 tests (update this when adding/removing tests)
+- **Test count**: 43 tests (update this when adding/removing tests)
 - **Lines of code**: ~2034 lines across all .go files
 - **Documentation files**: 7 files

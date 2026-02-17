@@ -447,6 +447,24 @@ schema := jsonschema.NewSchemaWithVersion(jsonschema.Draft07)
 
 **Note:** For schema inference from samples, always use `Generator` with `New()` and `AddSample()`. The `NewSchemaWithVersion` function is only for creating empty schema structures.
 
+### Examples
+
+The library can capture the first observed value for each field and include it as an `example` in the generated schema. This is useful for providing context about the data structure.
+
+**By default, example capturing is disabled.**
+
+**Enabling Examples:**
+
+To include examples in your schema, you must explicitly enable this feature:
+
+```go
+generator := jsonschema.New(
+    jsonschema.WithExamples(),
+)
+```
+
+When enabled, the generator captures the first value seen for each field.
+
 ### Custom Format Detectors
 
 Register user-defined format detection functions:

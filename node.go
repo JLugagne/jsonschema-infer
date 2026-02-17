@@ -58,9 +58,9 @@ func NewSchemaNode() *SchemaNode {
 }
 
 // ObserveValue updates this node with a new observed value
-func (n *SchemaNode) ObserveValue(value interface{}) {
+func (n *SchemaNode) ObserveValue(value interface{}, examplesEnabled bool) {
 	// Capture first value as example
-	if n.sampleCount == 0 {
+	if examplesEnabled && n.sampleCount == 0 {
 		n.firstValue = value
 	}
 
@@ -85,7 +85,7 @@ func (n *SchemaNode) ObserveValue(value interface{}) {
 			}
 			// Observe each item in the array
 			for _, item := range arr {
-				n.arrayItemNode.ObserveValue(item)
+				n.arrayItemNode.ObserveValue(item, examplesEnabled)
 			}
 		}
 
@@ -96,7 +96,7 @@ func (n *SchemaNode) ObserveValue(value interface{}) {
 				if n.objectProperties[key] == nil {
 					n.objectProperties[key] = NewSchemaNode()
 				}
-				n.objectProperties[key].ObserveValue(val)
+				n.objectProperties[key].ObserveValue(val, examplesEnabled)
 			}
 		}
 	}

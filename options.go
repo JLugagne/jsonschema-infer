@@ -80,3 +80,11 @@ func WithSchemaVersion(version SchemaVersion) Option {
 		g.schemaVersion = version
 	}
 }
+
+// WithExamples enables capturing examples in the schema
+// By default, examples are disabled
+func WithExamples() Option {
+	return func(g *Generator) {
+		g.examplesEnabled = true
+	}
+}

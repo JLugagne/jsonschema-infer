@@ -15,6 +15,7 @@ type Generator struct {
 	sampleCount   int
 	maxSamples    int
 	currentSchema *Schema
+	schemaVersion SchemaVersion
 }
 
 // New creates a new Generator with optional configuration
@@ -23,6 +24,7 @@ func New(opts ...Option) *Generator {
 		rootNode:      NewSchemaNode(),
 		predefined:    make(map[string]PredefinedType),
 		customFormats: getBuiltInFormats(),
+		schemaVersion: Draft07, // Default to Draft 07
 	}
 
 	for _, opt := range opts {
@@ -92,7 +94,7 @@ func (g *Generator) buildCurrentSchema() *Schema {
 
 	// Add the $schema field
 	if schema.Schema == "" {
-		schema.Schema = "http://json-schema.org/draft-07/schema#"
+		schema.Schema = string(g.schemaVersion)
 	}
 
 	return schema

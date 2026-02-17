@@ -393,6 +393,60 @@ schema, _ := generator.Generate()
 - `jsonschema.Array` - array type
 - `jsonschema.Object` - object type
 
+### Schema Versions
+
+Choose which JSON Schema draft version to generate:
+
+```go
+// Generate Draft 06 schema
+generator := jsonschema.New(
+    jsonschema.WithSchemaVersion(jsonschema.Draft06),
+)
+
+generator.AddSample(`{
+    "name": "John Doe",
+    "email": "john@example.com",
+    "age": 30
+}`)
+
+schema, _ := generator.Generate()
+// Output: {"$schema":"http://json-schema.org/draft-06/schema#", ...}
+```
+
+**Available Schema Versions:**
+- `jsonschema.Draft06` - JSON Schema Draft 06 (`http://json-schema.org/draft-06/schema#`)
+- `jsonschema.Draft07` - JSON Schema Draft 07 (`http://json-schema.org/draft-07/schema#`) - **Default**
+
+**Default Behavior:** If you don't specify a schema version, Draft 07 is used:
+
+```go
+// These are equivalent:
+generator1 := jsonschema.New()
+generator2 := jsonschema.New(jsonschema.WithSchemaVersion(jsonschema.Draft07))
+```
+
+**Why Use Draft 06?**
+- Compatibility with older systems or validators
+- Some tools or libraries may only support Draft 06
+
+**Note:** For the features used by this library (basic types, arrays, objects, format, required), there's no functional difference between Draft 06 and Draft 07. The main difference is the `$schema` URL in the output.
+
+**Creating Empty Schemas:**
+
+If you need an empty schema structure with a specific version (without using the Generator), use `NewSchemaWithVersion`:
+
+```go
+// Create empty Draft 06 schema
+schema := jsonschema.NewSchemaWithVersion(jsonschema.Draft06)
+// schema.Schema is "http://json-schema.org/draft-06/schema#"
+
+// Create empty Draft 07 schema
+schema := jsonschema.NewSchemaWithVersion(jsonschema.Draft07)
+// schema.Schema is "http://json-schema.org/draft-07/schema#"
+```
+
+**Note:** For schema inference from samples, always use `Generator` with `New()` and `AddSample()`. The `NewSchemaWithVersion` function is only for creating empty schema structures.
+
 ### Custom Format Detectors
 
 Register user-defined format detection functions:

@@ -49,8 +49,11 @@ The `Generator` is the main entry point and orchestrates the schema inference pr
 type Generator struct {
     rootNode      *SchemaNode          // Root of the observation tree
     predefined    map[string]PredefinedType  // Field-specific type overrides
+    customFormats []CustomFormat        // Format detectors (built-in + custom)
     sampleCount   int                   // Total samples observed
+    maxSamples    int                   // Maximum samples to process (0 = unlimited)
     currentSchema *Schema               // Cached current schema
+    schemaVersion SchemaVersion         // JSON Schema draft version (Draft06 or Draft07)
 }
 ```
 
@@ -684,36 +687,71 @@ func (n *SchemaNode) ToSchema() *Schema {
 }
 ```
 
-### Supporting Different Schema Versions
+### Schema Version Support
 
-**Example:** Draft-04 vs Draft-07
+The library supports multiple JSON Schema draft versions. Users can choose between Draft 06 and Draft 07.
+
+**Implementation:**
 
 ```go
-// In options.go
-type SchemaVersion int
+// In options.go - SchemaVersion type and constants
+type SchemaVersion string
+
 const (
-    Draft04 SchemaVersion = iota
-    Draft07
+    Draft06 SchemaVersion = "http://json-schema.org/draft-06/schema#"
+    Draft07 SchemaVersion = "http://json-schema.org/draft-07/schema#"
 )
 
+// Option to set schema version
 func WithSchemaVersion(version SchemaVersion) Option {
     return func(g *Generator) {
         g.schemaVersion = version
     }
 }
 
-// In jsonschema.go
-func (g *Generator) buildCurrentSchema() *Schema {
-    schema := NewSchema()
-    switch g.schemaVersion {
-    case Draft04:
-        schema.Schema = "http://json-schema.org/draft-04/schema#"
-    case Draft07:
-        schema.Schema = "http://json-schema.org/draft-07/schema#"
+// In jsonschema.go - Generator defaults to Draft07
+func New(opts ...Option) *Generator {
+    g := &Generator{
+        // ... other fields ...
+        schemaVersion: Draft07, // Default to Draft 07
     }
-    // ... rest of logic ...
+    // Apply options...
+    return g
+}
+
+// Schema version applied in buildCurrentSchema
+func (g *Generator) buildCurrentSchema() *Schema {
+    schema := g.rootNode.ToSchema(g.customFormats)
+    if schema.Schema == "" {
+        schema.Schema = string(g.schemaVersion)
+    }
+    return schema
 }
 ```
+
+**Usage:**
+
+```go
+// Draft 06 for schema generation
+gen06 := jsonschema.New(jsonschema.WithSchemaVersion(jsonschema.Draft06))
+
+// Draft 07 (default) for schema generation
+gen07 := jsonschema.New() // or WithSchemaVersion(Draft07)
+
+// Create empty schema with specific version (schema.go)
+emptyDraft06 := jsonschema.NewSchemaWithVersion(jsonschema.Draft06)
+emptyDraft07 := jsonschema.NewSchemaWithVersion(jsonschema.Draft07)
+
+// Deprecated function (uses Draft07 by default)
+oldSchema := jsonschema.NewSchema() // internally calls NewSchemaWithVersion(Draft07)
+```
+
+**Design Note:** For the features used by this library (types, arrays, objects, format, required), Draft 06 and Draft 07 are functionally equivalent. The main difference is the `$schema` URL.
+
+**Schema Creation Functions:**
+- `NewSchemaWithVersion(version SchemaVersion) *Schema` - Creates empty schema with specific version
+- `NewSchema() *Schema` - **Deprecated** - Creates empty schema with Draft07 (calls NewSchemaWithVersion internally)
+- For schema inference, always use `Generator` with `New()` and `AddSample()`
 
 ## Testing Strategy
 

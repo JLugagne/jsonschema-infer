@@ -42,7 +42,7 @@ When implementing a feature, complete ALL of these:
 - [ ] Update `FEATURES.md` status
 - [ ] Update `CLAUDE.md` feature list
 - [ ] Add/update examples in `doc.go`
-- [ ] Update test count everywhere (currently: 27 tests)
+- [ ] Update test count everywhere (currently: 41 tests)
 
 **DO NOT** consider a feature complete until all documentation is updated.
 
@@ -62,7 +62,7 @@ When implementing a feature, complete ALL of these:
 - `jsonschema.go` - Uses `encoding/json` Unmarshal for JSON parsing; includes `getBuiltInFormats()`
 - `schema.go` - JSON Schema output structures
 - `options.go` - Functional options pattern for configuration; includes `WithCustomFormat()`, `WithoutBuiltInFormats()`
-- `jsonschema_test.go` - Comprehensive tests (27 tests, all passing)
+- `jsonschema_test.go` - Comprehensive tests (41 tests, all passing)
 - `doc.go` - Package documentation with examples
 - `README.md` - Project overview and quick start
 - `USAGE.md` - Detailed usage guide with patterns
@@ -79,6 +79,7 @@ When implementing a feature, complete ALL of these:
 5. **Predefined types**: Support for field-specific type overrides
 6. **Load/Resume**: Can load existing schemas and continue adding samples
 7. **Flexible root types**: Supports objects, arrays, and primitives at root level
+8. **Schema version support**: Configurable Draft 06 or Draft 07 output
 
 ### Array Handling
 - Do NOT create temporary generators for arrays
@@ -102,7 +103,8 @@ When implementing a feature, complete ALL of these:
 - ✅ Deeply nested structures support
 - ✅ Multiple type detection (union types)
 - ✅ Max samples limit option
-- ✅ Comprehensive test coverage (27 tests)
+- ✅ Schema version selection (Draft 06 or Draft 07)
+- ✅ Comprehensive test coverage (39 tests)
 
 ## Development Workflow
 
@@ -128,6 +130,6 @@ When implementing a feature, complete ALL of these:
 - No special flags required
 
 ### Current Metrics
-- **Test count**: 27 tests (update this when adding/removing tests)
+- **Test count**: 41 tests (update this when adding/removing tests)
 - **Lines of code**: ~2034 lines across all .go files
 - **Documentation files**: 7 files

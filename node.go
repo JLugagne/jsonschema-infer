@@ -36,6 +36,9 @@ type SchemaNode struct {
 	// For primitive string values - pattern detection
 	stringValues []string
 
+	// First value seen (used as example in schema)
+	firstValue interface{}
+
 	// For arrays - single child node that merges all array items
 	arrayItemNode *SchemaNode
 
@@ -56,6 +59,11 @@ func NewSchemaNode() *SchemaNode {
 
 // ObserveValue updates this node with a new observed value
 func (n *SchemaNode) ObserveValue(value interface{}) {
+	// Capture first value as example
+	if n.sampleCount == 0 {
+		n.firstValue = value
+	}
+
 	n.sampleCount++
 
 	// Determine the primitive type
@@ -128,6 +136,11 @@ func (n *SchemaNode) ToSchema(customFormats ...[]CustomFormat) *Schema {
 		}
 	} else {
 		schema.Type = primaryType
+	}
+
+	// Add example (first value observed)
+	if n.firstValue != nil {
+		schema.Example = n.firstValue
 	}
 
 	// Apply type-specific logic

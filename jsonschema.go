@@ -13,9 +13,10 @@ type Generator struct {
 	predefined    map[string]PredefinedType
 	customFormats []CustomFormat
 	sampleCount   int
-	maxSamples    int
-	currentSchema *Schema
-	schemaVersion SchemaVersion
+	maxSamples       int
+	currentSchema    *Schema
+	schemaVersion    SchemaVersion
+	examplesEnabled  bool
 }
 
 // New creates a new Generator with optional configuration
@@ -23,8 +24,9 @@ func New(opts ...Option) *Generator {
 	g := &Generator{
 		rootNode:      NewSchemaNode(),
 		predefined:    make(map[string]PredefinedType),
-		customFormats: getBuiltInFormats(),
-		schemaVersion: Draft07, // Default to Draft 07
+		customFormats:   getBuiltInFormats(),
+		schemaVersion:   Draft07, // Default to Draft 07
+		examplesEnabled: false,   // Default to disabled
 	}
 
 	for _, opt := range opts {
@@ -66,7 +68,7 @@ func (g *Generator) AddSample(jsonData string) error {
 	g.sampleCount++
 
 	// Observe the data with the root node
-	g.rootNode.ObserveValue(data)
+	g.rootNode.ObserveValue(data, g.examplesEnabled)
 
 	// Apply predefined types to the tree
 	g.applyPredefinedTypes()

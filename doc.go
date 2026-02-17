@@ -156,6 +156,16 @@
 // Note: For schema inference from samples, always use Generator with New() and AddSample().
 // The NewSchemaWithVersion function is only for creating empty schema structures.
 //
+// # Examples
+//
+// The library can capture the first observed value for each field and include it as an
+// example in the generated schema. By default, example capturing is disabled.
+// To enable it, use the WithExamples option:
+//
+//	generator := jsonschema.New(jsonschema.WithExamples())
+//	generator.AddSample(`{"name": "John"}`)
+//	// Result: name field will have example: "John"
+//
 // # Incremental Schema Updates
 //
 // The schema is updated incrementally after each sample is added. You can inspect

@@ -95,7 +95,7 @@ type SchemaNode struct {
 
 **Key Methods:**
 - `NewSchemaNode()` - Create empty node
-- `ObserveValue()` - Process a JSON value
+- `ObserveValue()` - Process a JSON value with optional example capturing
 - `ToSchema()` - Convert observations to Schema object
 - `getPrimaryType()` - Determine most common type
 - `applyStringPatterns()` - Detect datetime patterns
@@ -158,7 +158,7 @@ Generator.AddSample()
     ↓
 json.Unmarshal() → interface{}
     ↓
-rootNode.ObserveValue(interface{})
+rootNode.ObserveValue(interface{}, bool)
     ↓
 [Recursive observation of value tree]
     ↓
@@ -174,7 +174,7 @@ currentSchema cached
 ### Observing a Value (Recursive)
 
 ```
-SchemaNode.ObserveValue(value)
+SchemaNode.ObserveValue(value, bool)
     ↓
 Increment sampleCount
     ↓
@@ -186,11 +186,11 @@ Switch on type:
     ├─ string: append to stringValues
     ├─ array:
     │   ├─ Create/reuse arrayItemNode
-    │   └─ For each item: arrayItemNode.ObserveValue(item)
+    │   └─ For each item: arrayItemNode.ObserveValue(item, bool)
     └─ object:
         └─ For each property:
             ├─ Create/reuse objectProperties[key]
-            └─ objectProperties[key].ObserveValue(value)
+            └─ objectProperties[key].ObserveValue(value, bool)
 ```
 
 ### Generating a Schema (Recursive)
@@ -659,7 +659,7 @@ type SchemaNode struct {
     numberMax float64
 }
 
-func (n *SchemaNode) ObserveValue(value interface{}) {
+func (n *SchemaNode) ObserveValue(value interface{}, examplesEnabled bool) {
     // ... existing logic ...
     if typeName == "number" || typeName == "integer" {
         if num, ok := value.(float64); ok {

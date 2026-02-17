@@ -41,6 +41,7 @@ This document tracks implemented and planned features for jsonschema-infer.
 - ✅ Custom format detectors - `WithCustomFormat(name, detector)`
 - ✅ Disable built-in formats - `WithoutBuiltInFormats()`
 - ✅ Schema version selection - `WithSchemaVersion(Draft06)` or `WithSchemaVersion(Draft07)`
+- ✅ Enable/Disable examples - `WithExamples(bool)`
 
 ### Schema Management
 - ✅ Incremental schema updates (rebuilds after each sample)
@@ -58,7 +59,7 @@ This document tracks implemented and planned features for jsonschema-infer.
 - ✅ Thread-safe operations with mutex
 
 ### Testing
-- ✅ Comprehensive test coverage (41 tests)
+- ✅ Comprehensive test coverage (43 tests)
 
 ---
 
@@ -125,7 +126,7 @@ This document tracks implemented and planned features for jsonschema-infer.
 - ⬜ `description` - Field descriptions
   - ⬜ User-provided via options
   - ⬜ Auto-generated from field names
-- ⬜ `examples` - Array of sample values from observations
+- ✅ `examples` - Capture sample values from observations
 - ⬜ `default` - Default values (most common value?)
 - ⬜ `deprecated` - Mark obsolete fields
 - ⬜ `readOnly` / `writeOnly` - API usage hints

@@ -88,3 +88,12 @@ func WithExamples() Option {
 		g.examplesEnabled = true
 	}
 }
+
+// WithIndent sets the indentation string used when marshaling the schema to JSON.
+// A common value is "  " (two spaces) or "\t" (tab).
+// By default, output is compact (no indentation).
+func WithIndent(indent string) Option {
+	return func(g *Generator) {
+		g.indent = indent
+	}
+}

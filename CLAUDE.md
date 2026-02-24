@@ -15,9 +15,15 @@
 - Keep code maintainable by scoping complexity to primitives within arrays or simple objects
 
 ### Schema Generation
-- **Update schema definition incrementally** after each sample is added
-- Call `buildCurrentSchema()` after every `AddSample()` invocation
-- Schema should evolve as more samples are observed
+- **Lazy schema building**: `buildCurrentSchema()` is called only when `Generate()` or `GetCurrentSchema()` is invoked, NOT after every `AddSample()`
+- Adding a sample invalidates the cached schema (`currentSchema = nil`); the schema is rebuilt on next access
+- `Generate()` and `GetCurrentSchema()` use a **write lock** (was RWMutex, now plain Mutex — RLock was never used)
+- `buildCurrentSchema` / `ToSchema` are now **read-only** (no mutation); the write lock is kept for correctness on the `currentSchema` cache field
+
+### Memory Design
+- **O(1) memory per string field**: format candidates are eliminated eagerly in `ObserveValue`, strings are never buffered
+- `stringValues []string` buffer has been removed; `candidateDetectors []func(string) bool` replaces it
+- Verified: 50,000 samples with 4 string fields → 58 KB heap (post-GC)
 
 ### Documentation Requirements
 
@@ -74,12 +80,13 @@ When implementing a feature, complete ALL of these:
 ### Key Design Patterns
 1. **Tree-based observation**: Each node observes values and delegates to children
 2. **No temporary generators**: Single tree structure that accumulates all observations
-3. **Incremental updates**: Schema is always current after adding a sample
+3. **Lazy schema building**: Schema only built when explicitly requested via `Generate()` or `GetCurrentSchema()`; cached and invalidated on next `AddSample()`
 4. **Unified format detection**: All formats (built-in and custom) use the same `FormatDetector` mechanism
 5. **Predefined types**: Support for field-specific type overrides
 6. **Load/Resume**: Can load existing schemas and continue adding samples
 7. **Flexible root types**: Supports objects, arrays, and primitives at root level
 8. **Schema version support**: Configurable Draft 06 or Draft 07 output
+9. **`AddParsedSample`**: Accept already-decoded `interface{}` to avoid double JSON parsing
 
 ### Array Handling
 - Do NOT create temporary generators for arrays

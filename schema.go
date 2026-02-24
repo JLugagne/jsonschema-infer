@@ -10,6 +10,7 @@ type Schema struct {
 	Items                *Schema            `json:"items,omitempty"`
 	Required             []string           `json:"required,omitempty"`
 	Format               string             `json:"format,omitempty"`
+	Const                any                `json:"const,omitempty"`
 	Example              any                `json:"example,omitempty"`
 	AdditionalProperties *bool              `json:"additionalProperties,omitempty"`
 }

@@ -327,17 +327,17 @@ func analyzeAPIResponses(endpoint string) (string, error) {
 ```go
 func processJSONLines(reader io.Reader) (string, error) {
     generator := jsonschema.New()
-    scanner := bufio.NewScanner(reader)
+    dec := json.NewDecoder(reader)
 
-    for scanner.Scan() {
-        line := scanner.Text()
-        if err := generator.AddSample(line); err != nil {
+    for dec.More() {
+        var value interface{}
+        if err := dec.Decode(&value); err != nil {
             return "", err
         }
-    }
-
-    if err := scanner.Err(); err != nil {
-        return "", err
+        // Use AddParsedSample to avoid parsing the JSON a second time inside the library
+        if err := generator.AddParsedSample(value); err != nil {
+            return "", err
+        }
     }
 
     return generator.Generate()
@@ -701,7 +701,25 @@ generator := jsonschema.New(
 )
 ```
 
-### 4. Validate Input Data
+### 4. Avoid Parsing JSON Twice
+
+If you decode JSON yourself (e.g. with `json.Decoder`), pass the result directly to `AddParsedSample` instead of re-encoding to string and calling `AddSample`:
+
+```go
+dec := json.NewDecoder(reader)
+var value interface{}
+if err := dec.Decode(&value); err != nil {
+    return err
+}
+// Good: no second parse
+generator.AddParsedSample(value)
+
+// Bad: encodes to string only for AddSample to decode it again
+b, _ := json.Marshal(value)
+generator.AddSample(string(b))
+```
+
+### 5. Validate Input Data
 
 Ensure JSON is valid before adding:
 
@@ -717,7 +735,7 @@ func addSampleSafely(generator *jsonschema.Generator, data string) error {
 }
 ```
 
-### 5. Save Schemas Periodically
+### 6. Save Schemas Periodically
 
 For long-running processes:
 

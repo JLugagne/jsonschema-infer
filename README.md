@@ -4,23 +4,39 @@ A Go library for inferring JSON Schema from JSON samples. This library analyzes 
 
 ## Features
 
-- ✅ **Infer basic types**: string, boolean, number, integer
-- ✅ **Detect optional fields**: tracks which fields appear in all samples vs. some samples
-- ✅ **Handle arrays**: treats all array items as the same type and infers their schema
+### Type inference
+- ✅ **Infer basic types**: string, boolean, number, integer, null
 - ✅ **Nested objects**: full support for deeply nested object structures
+- ✅ **Arrays**: treats all array items as the same type and infers their schema
 - ✅ **Arrays of objects**: infers schemas for complex array items with optional fields
-- ✅ **Unified format detection**: all formats detected using the same mechanism (FormatDetector functions)
-- ✅ **Built-in formats**: datetime (ISO 8601), email, UUID, IPv4, IPv6, and URL (HTTP/HTTPS/FTP/FTPS)
-- ✅ **Custom format detectors**: register user-defined format detection functions
-- ✅ **Configurable**: disable built-in formats for full control
-- ✅ **Predefined types**: configure specific field types (e.g., `created_at` as DateTime)
 - ✅ **Flexible root types**: supports objects, arrays, and primitives at root level
-- ✅ **Incremental updates**: schema evolves after each sample is added
-- ✅ **Load/Resume**: load previously generated schemas and continue adding samples
-- ✅ **Schema versions**: support for Draft 06 and Draft 07 (default)
-- ✅ **Examples**: optional example capturing (disabled by default)
-- ✅ **Tree-based architecture**: clean recursive structure for maintainability
-- ✅ **Max samples limit**: optionally limit the number of samples to process
+- ✅ **Multiple types**: union types when a field has varying types across samples
+
+### Field presence
+- ✅ **Optional fields**: fields appearing in all samples → required; some samples → optional
+- ✅ **Null → optional**: a field whose value is `null` in any sample is treated as optional, without polluting the inferred type
+- ✅ **Const detection**: if a primitive field always has the same value, the schema includes `"const"` for that value
+
+### Format detection
+- ✅ **Unified format detection**: all formats detected using the same `FormatDetector` mechanism
+- ✅ **Built-in formats**: datetime (ISO 8601), email, UUID, IPv4, IPv6, URL (HTTP/HTTPS/FTP/FTPS)
+- ✅ **Custom format detectors**: register user-defined format detection functions
+- ✅ **Disable built-in formats**: opt out for full control over format detection
+
+### Configuration
+- ✅ **Predefined types**: override inference for specific fields (e.g., `created_at` as DateTime)
+- ✅ **Schema versions**: Draft 06 and Draft 07 (default)
+- ✅ **Examples**: optional first-value capturing per field (disabled by default)
+- ✅ **Max samples limit**: cap the number of samples processed
+- ✅ **Indented output**: configurable JSON indentation via `WithIndent`
+
+### Performance & API
+- ✅ **Lazy schema building**: schema built on demand, cached between samples — no per-sample overhead
+- ✅ **O(1) memory per field**: format candidates eliminated eagerly; no string buffering
+- ✅ **`AddParsedSample`**: skip JSON parsing when you've already decoded the document
+- ✅ **`GenerateTo(io.Writer)`**: write schema directly to any writer without an intermediate string
+- ✅ **Thread-safe**: all methods safe for concurrent use — call `AddParsedSample` from multiple goroutines
+- ✅ **Load/Resume**: load a previously generated schema and continue adding samples
 
 ## Requirements
 
@@ -236,9 +252,10 @@ The library uses a tree-based recursive architecture:
   - Delegates to child nodes for complex types (arrays, objects)
   - Accumulates observations across all samples
 
-- **Incremental Updates**: Schema is rebuilt after each `AddSample()` call
-  - No need to wait until all samples are collected
-  - Can inspect schema evolution at any point
+- **Lazy Schema Building**: Schema is built on demand when `Generate()` or `GetCurrentSchema()` is called
+  - No redundant work while adding samples
+  - Result is cached and reused until the next sample invalidates it
+  - Can still inspect schema evolution via `GetCurrentSchema()` at any time
 
 - **Optional Field Detection**: Tracks how many times each field appears
   - Fields appearing in all samples → required

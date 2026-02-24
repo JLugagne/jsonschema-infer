@@ -19,7 +19,7 @@ The jsonschema-infer library uses a **tree-based recursive architecture** to bui
 
 ### Key Architectural Principles
 
-1. **Incremental Updates**: Schema evolves after each sample
+1. **Lazy Schema Building**: Schema is built on demand (when `Generate()` or `GetCurrentSchema()` is called), not after every sample
 2. **Tree-Based Recursion**: Hierarchical node structure mirrors JSON structure
 3. **Primitive Focus**: Each node handles only simple types, delegates complexity
 4. **Sample Counting**: Track observation frequency for required field detection
@@ -27,9 +27,9 @@ The jsonschema-infer library uses a **tree-based recursive architecture** to bui
 
 ## Design Philosophy
 
-### Simplicity Over Optimization
+### Performance Through Lazy Evaluation
 
-The library prioritizes code clarity and maintainability over performance optimization. Each `AddSample()` call triggers a full schema rebuild, which is simple to understand and debug but may not be optimal for very large sample sets.
+Schema construction is deferred until actually requested. `AddSample()` and `AddParsedSample()` only update the observation tree; `buildCurrentSchema()` is called once when `Generate()` or `GetCurrentSchema()` is invoked. This avoids O(N) full-tree traversals while adding N samples.
 
 ### Recursive Decomposition
 
@@ -61,7 +61,7 @@ type Generator struct {
 - Accept JSON samples and parse them
 - Maintain global sample count
 - Apply predefined type configurations
-- Trigger schema rebuilds after each sample
+- Build schema lazily on demand (cached until next sample invalidates it)
 - Serialize schemas to JSON
 
 **Key Methods:**
@@ -158,6 +158,8 @@ Generator.AddSample()
     ↓
 json.Unmarshal() → interface{}
     ↓
+Generator.AddParsedSample(interface{})   ← callers can start here to skip re-parsing
+    ↓
 rootNode.ObserveValue(interface{}, bool)
     ↓
 [Recursive observation of value tree]
@@ -166,9 +168,7 @@ Increment sampleCount
     ↓
 applyPredefinedTypes()
     ↓
-buildCurrentSchema()
-    ↓
-currentSchema cached
+currentSchema = nil   (invalidate cache; schema built lazily on next Generate/GetCurrentSchema)
 ```
 
 ### Observing a Value (Recursive)
@@ -200,7 +200,7 @@ Generator.Generate()
     ↓
 Check sampleCount > 0
     ↓
-Use/build currentSchema
+if currentSchema == nil: buildCurrentSchema() → cache result
     ↓
 json.Marshal(currentSchema)
     ↓
@@ -421,20 +421,19 @@ This ensures:
 
 ## Design Decisions
 
-### 1. Why Rebuild Schema After Each Sample?
+### 1. Why Build Schema Lazily?
 
-**Decision:** Call `buildCurrentSchema()` after every `AddSample()`.
+**Decision:** Invalidate `currentSchema` on each `AddSample()`; rebuild only when `Generate()` or `GetCurrentSchema()` is called.
 
 **Rationale:**
-- Simplifies implementation (single code path)
-- Makes schema always current (no stale state)
-- Enables `GetCurrentSchema()` at any time
-- Easier to debug and test
+- Eliminates O(N) full-tree traversals during bulk sample ingestion
+- `buildCurrentSchema` calls `ToSchema` (allocations, `sort.Strings`, format detection) — expensive at scale
+- Schema is still always current when you ask for it (correct semantics preserved)
+- `GetCurrentSchema()` can still be called after every sample if incremental inspection is needed
 
-**Trade-off:** Performance cost for large sample sets.
+**Performance impact:** Removes the `ToSchema` cost from the hot path (was ~12% of CPU in profiling).
 
-**Alternative Considered:** Lazy evaluation (rebuild only on `Generate()`).
-- **Rejected:** Complicates state management, less transparent behavior.
+**Implementation note:** `Generate()` and `GetCurrentSchema()` use a write lock because `buildCurrentSchema` → `applyStringPatterns` mutates node state (clears string buffer, updates `candidateFormats`). The cached result is stored in `currentSchema` and reused for subsequent calls until the next sample invalidates it.
 
 ### 2. Why Tree Structure Instead of Flat Map?
 
@@ -506,15 +505,20 @@ This ensures:
 
 ### Time Complexity
 
-**AddSample():**
-- Parsing: O(n) where n = JSON size
+**AddSample() / AddParsedSample():**
+- Parsing (AddSample only): O(n) where n = JSON size
 - Observation: O(m) where m = number of fields
-- Schema rebuild: O(m × d) where d = max depth
-- **Total: O(n + m × d)**
+- Schema NOT rebuilt here (lazy)
+- **Total: O(n + m)**
 
-**Generate():**
-- Marshaling current schema: O(m)
-- **Total: O(m)**
+**Generate() / GetCurrentSchema() — first call after N samples:**
+- Schema build: O(m × d) where d = max depth (includes format detection)
+- Marshaling: O(m)
+- Result cached until next AddSample invalidates it
+- **Total: O(m × d)**
+
+**Generate() / GetCurrentSchema() — subsequent calls (cache hit):**
+- **Total: O(m)** (marshal only)
 
 **Load():**
 - Parsing: O(s) where s = schema size
@@ -546,7 +550,6 @@ This ensures:
 - Extreme nesting depth (10+ levels) due to recursive overhead
 
 **Future Optimizations:**
-- Batch mode (rebuild only on demand)
 - String value sampling (limit stored samples)
 - Lazy child node creation
 

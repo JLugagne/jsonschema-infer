@@ -44,7 +44,8 @@ This document tracks implemented and planned features for jsonschema-infer.
 - ✅ Enable/Disable examples - `WithExamples(bool)`
 
 ### Schema Management
-- ✅ Incremental schema updates (rebuilds after each sample)
+- ✅ Lazy schema building (build on demand, not after every sample)
+- ✅ `AddParsedSample(interface{})` - skip JSON parsing for pre-decoded values
 - ✅ Load existing schema - `Load(schemaJSON)`
 - ✅ Resume adding samples to loaded schema
 - ✅ Get current schema as object - `GetCurrentSchema()`
@@ -258,9 +259,8 @@ This document tracks implemented and planned features for jsonschema-infer.
 ### Performance Optimizations
 
 #### Batch Processing
-- ⬜ `AddSamples([]string)` - Add multiple samples without rebuilding schema
-- ⬜ `RebuildSchema()` - Manually trigger schema rebuild
-- ⬜ Lazy generation - Only rebuild when `Generate()` called
+- ✅ Lazy generation — Schema only built when `Generate()` / `GetCurrentSchema()` is called
+- ⬜ `AddSamples([]string)` - Convenience batch method
 
 #### Streaming
 - ⬜ `AddSampleStream(io.Reader)` - Process streaming JSON

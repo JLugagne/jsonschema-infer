@@ -1,7 +1,9 @@
 package jsonschema
 
 import (
+	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -1709,5 +1711,247 @@ func TestNewSchemaWithVersionMarshaling(t *testing.T) {
 	expectedVersion := "http://json-schema.org/draft-06/schema#"
 	if unmarshaled.Schema != expectedVersion {
 		t.Errorf("Expected schema version %s after marshal/unmarshal, got %s", expectedVersion, unmarshaled.Schema)
+	}
+}
+
+// TestNullValueMakesFieldOptional verifies that a property whose value is null
+// in one sample is treated as optional (not required).
+func TestNullValueMakesFieldOptional(t *testing.T) {
+	generator := New()
+
+	// Sample 1: "value" is a nested object
+	err := generator.AddSample(`{
+		"structure": "item",
+		"type": "coordinates",
+		"value": {
+			"latitude": {"structure": "item", "type": "float", "value": 48.61319435},
+			"longitude": {"structure": "item", "type": "float", "value": 7.6940764}
+		}
+	}`)
+	if err != nil {
+		t.Fatalf("Failed to add sample 1: %v", err)
+	}
+
+	// Sample 2: "value" is null
+	err = generator.AddSample(`{
+		"structure": "item",
+		"type": "coordinates",
+		"value": null
+	}`)
+	if err != nil {
+		t.Fatalf("Failed to add sample 2: %v", err)
+	}
+
+	schemaJSON, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Failed to generate schema: %v", err)
+	}
+
+	var schema Schema
+	if err = json.Unmarshal([]byte(schemaJSON), &schema); err != nil {
+		t.Fatalf("Failed to unmarshal schema: %v", err)
+	}
+
+	// "structure" and "type" appear in both samples → required
+	isRequired := func(field string) bool {
+		for _, r := range schema.Required {
+			if r == field {
+				return true
+			}
+		}
+		return false
+	}
+	if !isRequired("structure") {
+		t.Errorf("Expected 'structure' to be required")
+	}
+	if !isRequired("type") {
+		t.Errorf("Expected 'type' to be required")
+	}
+	// "value" is null in sample 2 → must be optional
+	if isRequired("value") {
+		t.Errorf("Expected 'value' to be optional (null in one sample)")
+	}
+
+	// "value" must still appear in properties
+	if schema.Properties["value"] == nil {
+		t.Errorf("Expected 'value' to appear in properties")
+	}
+}
+
+// TestNullValueNoTypeContamination verifies that null does not pollute the
+// inferred type of a field (the field should keep its non-null type).
+func TestNullValueNoTypeContamination(t *testing.T) {
+	generator := New()
+	generator.AddSample(`{"name": "Alice", "score": 42}`)
+	generator.AddSample(`{"name": null, "score": 99}`)
+
+	schemaJSON, _ := generator.Generate()
+	var schema Schema
+	json.Unmarshal([]byte(schemaJSON), &schema)
+
+	// "name" should be type "string", not ["null", "string"]
+	if schema.Properties["name"].Type != "string" {
+		t.Errorf("Expected 'name' type to be 'string', got %v", schema.Properties["name"].Type)
+	}
+	// "name" is null in one sample → optional
+	for _, r := range schema.Required {
+		if r == "name" {
+			t.Errorf("Expected 'name' to be optional (was null in one sample)")
+		}
+	}
+}
+
+// TestConstSameValue verifies that a field with identical values across all
+// samples gets a "const" annotation in the schema.
+func TestConstSameValue(t *testing.T) {
+	generator := New()
+	generator.AddSample(`{"structure": "item", "type": "coordinates", "id": 1}`)
+	generator.AddSample(`{"structure": "item", "type": "coordinates", "id": 2}`)
+	generator.AddSample(`{"structure": "item", "type": "coordinates", "id": 3}`)
+
+	schemaJSON, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Failed to generate schema: %v", err)
+	}
+
+	var schema Schema
+	if err = json.Unmarshal([]byte(schemaJSON), &schema); err != nil {
+		t.Fatalf("Failed to unmarshal schema: %v", err)
+	}
+
+	// "structure" is always "item" → must have const
+	structureProp := schema.Properties["structure"]
+	if structureProp.Const == nil {
+		t.Errorf("Expected 'structure' to have const, got nil")
+	} else if structureProp.Const != "item" {
+		t.Errorf("Expected 'structure' const to be 'item', got %v", structureProp.Const)
+	}
+
+	// "type" is always "coordinates" → must have const
+	typeProp := schema.Properties["type"]
+	if typeProp.Const == nil {
+		t.Errorf("Expected 'type' to have const, got nil")
+	} else if typeProp.Const != "coordinates" {
+		t.Errorf("Expected 'type' const to be 'coordinates', got %v", typeProp.Const)
+	}
+
+	// "id" varies → must NOT have const
+	idProp := schema.Properties["id"]
+	if idProp.Const != nil {
+		t.Errorf("Expected 'id' to have no const (values differ), got %v", idProp.Const)
+	}
+}
+
+// TestConstDifferentValues verifies that fields with different values do not
+// get a "const" annotation.
+func TestConstDifferentValues(t *testing.T) {
+	generator := New()
+	generator.AddSample(`{"name": "Alice", "active": true}`)
+	generator.AddSample(`{"name": "Bob", "active": false}`)
+
+	schemaJSON, _ := generator.Generate()
+	var schema Schema
+	json.Unmarshal([]byte(schemaJSON), &schema)
+
+	if schema.Properties["name"].Const != nil {
+		t.Errorf("Expected 'name' to have no const (values differ), got %v", schema.Properties["name"].Const)
+	}
+	if schema.Properties["active"].Const != nil {
+		t.Errorf("Expected 'active' to have no const (values differ), got %v", schema.Properties["active"].Const)
+	}
+}
+
+// TestConstWithNullSamples verifies that const is still detected correctly when
+// some samples have null for the field (null observations are ignored).
+func TestConstWithNullSamples(t *testing.T) {
+	generator := New()
+	generator.AddSample(`{"kind": "sensor", "value": 10}`)
+	generator.AddSample(`{"kind": null, "value": 20}`)
+	generator.AddSample(`{"kind": "sensor", "value": 30}`)
+
+	schemaJSON, _ := generator.Generate()
+	var schema Schema
+	json.Unmarshal([]byte(schemaJSON), &schema)
+
+	// "kind" is "sensor" whenever non-null → const = "sensor"
+	kindProp := schema.Properties["kind"]
+	if kindProp.Const == nil {
+		t.Errorf("Expected 'kind' to have const 'sensor', got nil")
+	} else if kindProp.Const != "sensor" {
+		t.Errorf("Expected 'kind' const to be 'sensor', got %v", kindProp.Const)
+	}
+	// "kind" is null in one sample → optional
+	for _, r := range schema.Required {
+		if r == "kind" {
+			t.Errorf("Expected 'kind' to be optional (was null in one sample)")
+		}
+	}
+}
+
+func TestGenerateToWriter(t *testing.T) {
+	generator := New()
+	generator.AddSample(`{"name": "Alice", "age": 30}`)
+
+	var buf bytes.Buffer
+	if err := generator.GenerateTo(&buf); err != nil {
+		t.Fatalf("GenerateTo failed: %v", err)
+	}
+
+	var schema Schema
+	if err := json.Unmarshal(buf.Bytes(), &schema); err != nil {
+		t.Fatalf("Failed to unmarshal GenerateTo output: %v", err)
+	}
+	if schema.Properties["name"].Type != "string" {
+		t.Errorf("Expected name to be string, got %v", schema.Properties["name"].Type)
+	}
+}
+
+func TestGenerateToWriterNoSamples(t *testing.T) {
+	generator := New()
+	var buf bytes.Buffer
+	if err := generator.GenerateTo(&buf); err == nil {
+		t.Errorf("Expected error when no samples added, got nil")
+	}
+}
+
+func TestWithIndentGenerate(t *testing.T) {
+	generator := New(WithIndent("  "))
+	generator.AddSample(`{"name": "Alice"}`)
+
+	result, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+	if !strings.Contains(result, "\n") {
+		t.Errorf("Expected indented output to contain newlines, got: %s", result)
+	}
+	if !strings.Contains(result, "  ") {
+		t.Errorf("Expected indented output to contain two-space indent, got: %s", result)
+	}
+}
+
+func TestWithIndentGenerateTo(t *testing.T) {
+	generator := New(WithIndent("\t"))
+	generator.AddSample(`{"name": "Alice"}`)
+
+	var buf bytes.Buffer
+	if err := generator.GenerateTo(&buf); err != nil {
+		t.Fatalf("GenerateTo failed: %v", err)
+	}
+	if !strings.Contains(buf.String(), "\t") {
+		t.Errorf("Expected tab-indented output, got: %s", buf.String())
+	}
+}
+
+func TestGenerateCompactByDefault(t *testing.T) {
+	generator := New()
+	generator.AddSample(`{"name": "Alice"}`)
+
+	result, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+	if strings.Contains(result, "\n") {
+		t.Errorf("Expected compact output (no newlines) by default, got: %s", result)
 	}
 }

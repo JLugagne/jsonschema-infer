@@ -166,10 +166,24 @@
 //	generator.AddSample(`{"name": "John"}`)
 //	// Result: name field will have example: "John"
 //
-// # Incremental Schema Updates
+// # Lazy Schema Building
 //
-// The schema is updated incrementally after each sample is added. You can inspect
-// the current schema at any time using GetCurrentSchema():
+// The schema is built on demand when Generate() or GetCurrentSchema() is called, not
+// after every AddSample(). This avoids expensive O(N) tree traversals during bulk
+// ingestion. The result is cached and reused until the next sample invalidates it.
+//
+// If you parse JSON yourself (e.g. with json.Decoder), use AddParsedSample to skip
+// re-parsing inside the library:
+//
+//	dec := json.NewDecoder(reader)
+//	for dec.More() {
+//	    var v interface{}
+//	    dec.Decode(&v)
+//	    generator.AddParsedSample(v)  // no double-parse
+//	}
+//	schema, _ := generator.Generate()
+//
+// You can still inspect the evolving schema at any point via GetCurrentSchema():
 //
 //	generator := jsonschema.New()
 //	generator.AddSample(`{"name": "John"}`)
@@ -224,7 +238,7 @@
 //   - Nodes handle only primitives (string, number, boolean, null)
 //   - Complex types (arrays, objects) delegate to child nodes
 //   - All observations are accumulated across samples
-//   - Schema is rebuilt after each AddSample() call
+//   - Schema is built lazily (on demand) and cached between calls
 //
 // This design keeps the code maintainable by limiting complexity to simple
 // primitives within well-defined scopes.
@@ -258,12 +272,14 @@
 //
 // # Performance Considerations
 //
-// The library rebuilds the entire schema after each AddSample() call. For large
-// numbers of samples, this may have performance implications. Future versions
-// may add batch processing options.
+//   - Schema is built lazily — no overhead during sample ingestion.
+//   - Use AddParsedSample when you already hold a decoded interface{} value to
+//     avoid a second json.Unmarshal call.
+//   - For very large sample sets, set a limit with WithMaxSamples to cap
+//     the number of samples processed.
 //
 // # Thread Safety
 //
-// The Generator is not thread-safe. If you need to add samples from multiple
-// goroutines, use appropriate synchronization (e.g., sync.Mutex).
+// The Generator is thread-safe. AddSample, AddParsedSample, Generate, and
+// GetCurrentSchema can all be called concurrently from multiple goroutines.
 package jsonschema

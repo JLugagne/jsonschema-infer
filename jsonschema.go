@@ -1,14 +1,17 @@
 package jsonschema
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"strings"
 	"sync"
 )
 
 // Generator generates JSON schemas from JSON samples
 type Generator struct {
-	mu            sync.RWMutex
+	mu            sync.Mutex
 	rootNode      *SchemaNode
 	predefined    map[string]PredefinedType
 	customFormats []CustomFormat
@@ -17,6 +20,7 @@ type Generator struct {
 	currentSchema    *Schema
 	schemaVersion    SchemaVersion
 	examplesEnabled  bool
+	indent           string // JSON indentation string; empty = compact
 }
 
 // New creates a new Generator with optional configuration
@@ -48,9 +52,21 @@ func getBuiltInFormats() []CustomFormat {
 	}
 }
 
-// AddSample adds a JSON sample to the generator and updates the schema
-// Thread-safe: can be called concurrently from multiple goroutines
+// AddSample adds a JSON sample to the generator and updates the schema.
+// Thread-safe: can be called concurrently from multiple goroutines.
 func (g *Generator) AddSample(jsonData string) error {
+	var data interface{}
+	if err := json.Unmarshal([]byte(jsonData), &data); err != nil {
+		return fmt.Errorf("failed to parse JSON: %w", err)
+	}
+	return g.AddParsedSample(data)
+}
+
+// AddParsedSample adds an already-parsed JSON value to the generator and updates the schema.
+// Use this when you have already unmarshalled the JSON yourself (e.g. via json.Decoder) to
+// avoid parsing the same document twice.
+// Thread-safe: can be called concurrently from multiple goroutines.
+func (g *Generator) AddParsedSample(data interface{}) error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
@@ -59,22 +75,18 @@ func (g *Generator) AddSample(jsonData string) error {
 		return nil
 	}
 
-	// Parse JSON using json/v2 Unmarshal
-	var data interface{}
-	if err := json.Unmarshal([]byte(jsonData), &data); err != nil {
-		return fmt.Errorf("failed to parse JSON: %w", err)
-	}
-
 	g.sampleCount++
 
 	// Observe the data with the root node
-	g.rootNode.ObserveValue(data, g.examplesEnabled)
+	g.rootNode.ObserveValue(data, g.examplesEnabled, g.customFormats)
 
 	// Apply predefined types to the tree
 	g.applyPredefinedTypes()
 
-	// Regenerate schema after each sample
-	g.currentSchema = g.buildCurrentSchema()
+	// Invalidate the cached schema; it will be rebuilt lazily on the next
+	// Generate() or GetCurrentSchema() call.  This avoids O(N) full-tree
+	// traversals while adding N samples.
+	g.currentSchema = nil
 
 	return nil
 }
@@ -92,7 +104,7 @@ func (g *Generator) applyPredefinedTypes() {
 // buildCurrentSchema builds the current schema from the root node
 func (g *Generator) buildCurrentSchema() *Schema {
 	// Use the root node's ToSchema method which handles all types
-	schema := g.rootNode.ToSchema(g.customFormats)
+	schema := g.rootNode.ToSchema()
 
 	// Add the $schema field
 	if schema.Schema == "" {
@@ -102,39 +114,60 @@ func (g *Generator) buildCurrentSchema() *Schema {
 	return schema
 }
 
-// Generate generates a JSON schema from the accumulated samples
-// Thread-safe: can be called concurrently from multiple goroutines
+// encodeTo encodes the current schema to w using the configured indentation.
+// Must be called with g.mu held.
+func (g *Generator) encodeTo(w io.Writer) error {
+	if g.currentSchema == nil {
+		g.currentSchema = g.buildCurrentSchema()
+	}
+	enc := json.NewEncoder(w)
+	if g.indent != "" {
+		enc.SetIndent("", g.indent)
+	}
+	return enc.Encode(g.currentSchema)
+}
+
+// Generate generates a JSON schema from the accumulated samples.
+// Thread-safe: can be called concurrently from multiple goroutines.
 func (g *Generator) Generate() (string, error) {
-	g.mu.RLock()
-	defer g.mu.RUnlock()
+	g.mu.Lock()
+	defer g.mu.Unlock()
 
 	if g.sampleCount == 0 {
 		return "", fmt.Errorf("no samples added")
 	}
 
-	// Use the current schema (already built incrementally)
-	schema := g.currentSchema
-	if schema == nil {
-		schema = g.buildCurrentSchema()
-	}
-
-	result, err := json.Marshal(schema)
-	if err != nil {
+	var buf bytes.Buffer
+	if err := g.encodeTo(&buf); err != nil {
 		return "", fmt.Errorf("failed to marshal schema: %w", err)
 	}
-
-	return string(result), nil
+	// json.Encoder appends a trailing newline; strip it for consistency.
+	return strings.TrimRight(buf.String(), "\n"), nil
 }
 
-// GetCurrentSchema returns the current schema as a Schema object
-// This can be called after each AddSample to see the evolving schema
-// Thread-safe: can be called concurrently from multiple goroutines
+// GenerateTo writes the JSON schema directly to w.
+// This avoids allocating an intermediate string when writing to a file,
+// HTTP response body, or any other io.Writer.
+// Thread-safe: can be called concurrently from multiple goroutines.
+func (g *Generator) GenerateTo(w io.Writer) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.sampleCount == 0 {
+		return fmt.Errorf("no samples added")
+	}
+	return g.encodeTo(w)
+}
+
+// GetCurrentSchema returns the current schema as a Schema object.
+// This can be called after each AddSample to see the evolving schema.
+// Thread-safe: can be called concurrently from multiple goroutines.
 func (g *Generator) GetCurrentSchema() *Schema {
-	g.mu.RLock()
-	defer g.mu.RUnlock()
+	g.mu.Lock()
+	defer g.mu.Unlock()
 
 	if g.currentSchema == nil {
-		return g.buildCurrentSchema()
+		g.currentSchema = g.buildCurrentSchema()
 	}
 	return g.currentSchema
 }
@@ -240,9 +273,12 @@ func (g *Generator) loadSchemaIntoNode(node *SchemaNode, schema *Schema, parentS
 		}
 	}
 
-	// Handle string patterns
-	if typeStr == "string" && schema.Format == "date-time" {
-		node.stringValues = []string{"2023-01-01T00:00:00Z"} // Placeholder for datetime detection
+	// Handle string format from loaded schema: pre-seed candidateFormats so that
+	// the loaded format survives the first round of elimination when new samples arrive.
+	if typeStr == "string" && schema.Format != "" {
+		node.candidateFormats = []string{schema.Format}
+		node.candidateDetectors = []func(string) bool{func(_ string) bool { return true }}
+		node.stringCount = parentSampleCount
 	}
 
 	return nil

@@ -301,7 +301,7 @@ Contributions are welcome! Please feel free to submit issues and pull requests.
 
 ## License
 
-[Specify your license here]
+[MIT License](LICENSE)
 
 ## Notes
 
